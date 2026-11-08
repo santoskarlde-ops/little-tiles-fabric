@@ -1,0 +1,36 @@
+{
+    "schemaVersion": 1,
+    "id": "littletiles",
+    "version": "1.6.0-fabric-port.0",
+    "name": "LittleTiles",
+    "description": "#BuildItYourself (Fabric port)",
+    "authors": [
+        "CreativeMD",
+        "N247S"
+    ],
+    "contact": {
+        "sources": "https://github.com/CreativeMD/LittleTiles",
+        "homepage": "https://modrinth.com/mod/littletiles",
+        "issues": "https://github.com/CreativeMD/LittleTiles/issues"
+    },
+    "license": "LGPL-3.0-only",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "team.creative.littletiles.fabric.LittleTilesFabric"
+        ],
+        "client": [
+            "team.creative.littletiles.fabric.LittleTilesFabricClient"
+        ]
+    },
+    "mixins": [
+        "littletiles.fabric.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": ">=0.19.5",
+        "fabric-api": "*",
+        "minecraft": ">=26.3",
+        "java": ">=25",
+        "creativecore": "*"
+    }
+}

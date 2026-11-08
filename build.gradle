@@ -1,0 +1,64 @@
+plugins {
+    // Non-remapping Loom: Minecraft 26.x is unobfuscated, so there is no `mappings` line
+    // and no modImplementation/remapJar. Same plugin id CreativeCore's 26.x branch uses.
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+group = "team.creative.${project.mod_id}"
+version = project.mod_version
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+java.withSourcesJar()
+
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+    maven { url = 'https://api.modrinth.com/maven' }
+    maven { url = 'https://maven.neoforged.net/releases' }
+}
+
+// Layout mirrors CreativeCore: src/main = loader-agnostic, src/fabric = Fabric-only.
+// Staged LittleTiles source lives in src/port/java and is OFF by default so the skeleton keeps running.
+// Opt in with:  ./gradlew compileJava -PportSource=true
+// Packages listed in port-excludes.txt (relative to src/port/java, prefix match) stay out of the build.
+def portSource = project.findProperty('portSource') == 'true'
+def portExcludes = file('port-excludes.txt').exists() ? file('port-excludes.txt').readLines().collect { it.trim() }.findAll { it && !it.startsWith('#') } : []
+
+sourceSets {
+    main {
+        java.srcDirs = ['src/main/java', 'src/fabric/java'] + (portSource ? ['src/port/java'] : [])
+        resources.srcDirs = ['src/main/resources', 'src/fabric/resources']
+        java.exclude { FileTreeElement e ->
+            e.file.path.replace('\\', '/').contains('/src/port/java/') && portExcludes.any { e.relativePath.pathString.startsWith(it) }
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    implementation 'com.google.code.findbugs:jsr305:3.0.2' // javax.annotation.Nullable, as CreativeCore uses
+
+    if (findProject(':CreativeCore') != null) {
+        implementation project(':CreativeCore')
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+    // javac stops at 100 errors by default; the port needs the full list for triage
+    options.compilerArgs += ['-Xmaxerrs', '100000', '-Xmaxwarns', '1000']
+}
+
+jar {
+    from('LICENSE') { rename { "${it}_${project.mod_id}" } }
+}

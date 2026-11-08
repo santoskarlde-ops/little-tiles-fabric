@@ -1,0 +1,68 @@
+# Handoff prompt: LittleTiles Fabric 26.3 port, resume at Phase 2b
+
+You are continuing a port of the LittleTiles Minecraft mod (CreativeTeam) to **Minecraft 26.3 on Fabric**. Work in phases, verify each compiles before moving on, do not skip ahead. Phase 2b (get the ported source to compile) is in progress. You cannot compile in your sandbox: all compile feedback comes from `build.log` files the user uploads after running Gradle on their machine.
+
+## Rules (from the original task, keep following them)
+- Don't invent APIs. If unsure whether a 26.3 / Fabric API exists, check docs or decompiled/real sources first, or ask the user for the file. Mark anything unverified in PORT_NOTES.md.
+- Don't stub out features silently. Anything that can't be ported goes in PORT_NOTES.md with the reason.
+- Keep original author credits and license headers. (The Phase 0 license check of LittleTiles and CreativeCore was done in an earlier session; re-verify if in doubt.)
+- Preserve the save format so existing worlds' tile data still loads; if a format change is unavoidable, write a migration and tell the user.
+- Small focused changes; final report must say what works, what's broken/missing, how to build/run, known risks.
+- Phases: 0 recon, 1 build setup, 2 CreativeCore layer (replace Forge/NeoForge capabilities, events, DeferredRegister with Fabric API equivalents), 3 LittleTiles core (block/BE registration, tile NBT, placement, collision/VoxelShape without phasing bugs, rendering/baking, networking, items, GUIs, commands, config), 4 compatibility/rendering (Fabric Rendering API/Indigo, works with and without Sodium/Iris, guard optional mods), 5 testing (dev client, dedicated server join, save/reload; read stack traces before fixing).
+
+## User environment
+- CachyOS, **fish shell** (no `VAR=value`: use `set VAR value`; quote globs like `--include='*.java'`; paste long commands on one line). Java 17 shown in prompt, project targets 26.3 toolchain via Gradle.
+- Project root: `~/Downloads/littletiles-fabric`. Subproject `CreativeCore/` (the user's checkout, 26.x branch) with `src/main` (loader-agnostic), `src/forge` (NeoForge side, not compiled for Fabric), `src/fabric` (Fabric side; compiled, `:CreativeCore:compileJava` passes).
+- LittleTiles source being ported lives in `src/port/java` (the **1.21.x NeoForge-style source**: old `CompoundTag`-based serialization, old CreativeCore GUI API). `build.gradle` compiles it only with `-PportSource=true`; it also has `implementation 'com.google.code.findbugs:jsr305:3.0.2'` and `implementation project(':CreativeCore')`.
+- Build/triage loop: `./gradlew compileJava -PportSource=true 2>&1 | tee build.log`, then upload `build.log`. `tools/triage_errors.py build.log` summarizes errors.
+- The AI sandbox has **no network** (bash cannot clone). `web_search` works (snippets only); `web_fetch` is rate limited and only opens URLs from results or the user's messages. To get CreativeCore sources, ask the user to zip files with `find ... | zip ~/Downloads/x.zip -@` and upload them.
+
+## Delivery format used so far
+Cumulative **overlay zips** extracted over the project root (`unzip -o`): `littletiles-phase2b-overlay` (base) then the latest `littletiles-roundN-overlay` (round 9 includes rounds 1-8). Each overlay also carries `PORT_NOTES.md`, `PORT_EVENTS.md`, and `tools/`. Workflow per round: triage the new log (dedupe by file+line+message; confirm the log's source lines match the last overlay), write error-driven codemods or hand ports, update PORT_NOTES.md, zip, hand over, ask for the next log.
+
+## Error history (unique file+line+message / files with errors)
+4,487/407 (Phase 2b) -> 3,549/316 -> 3,483 -> 3,081 -> 3,042/307 (round 5) -> 3,042 -> 2,876/291 (BlockEntityCreative) -> 2,771/281 (round 8). Round 9 (rect/enabled/visible, GuiSync lambdas) is **uncompiled**: the next log should show its effect.
+
+## Done so far (all in the overlays)
+1. `fix_nbt_optionals.py` (error-driven): NBT getters return `Optional` in 26.x -> `.orElse(default)`; defaults match old behavior. Rerun on each new log (idempotent). `getList(k, type)` -> `getListOrEmpty(k)` loses the element-type filter: re-add explicit type checks where save compatibility matters.
+2. `javax.annotation.Nullable` handled via jsr305 dependency (compile shortcut; Minecraft itself uses `org.jspecify.annotations.Nullable`; swap later).
+3. `isClientSide` field -> `isClientSide()` (incl. bare uses inside Level subclasses).
+4. `tools/gui_parent_first.py`: 37 GUI classes now take `IGuiParent parent` first; 498 call sites ported (parent = receiver of enclosing `x.add*(...)`, else `this`). **Verified** from source: `GuiControl(parent, name)` only stores the parent; `GuiParent.add(control)` registers it and re-sets the parent, so no double-add.
+5. `tools/gui_members.py` (caret-driven): `flow = X` -> `setFlow(X)` (49), `visible/enabled = b` -> `setVisible/setEnabled`, `GuiCheckBox.value` read -> `get()` (40), write -> `GuiCompat.setSilent(cb, v)` (3; `set()` notifies, old field write did not; `get()` returns false on the server), `rect`/`enabled`/`visible` reads -> `GuiClientCompat.rect/isEnabled/isVisible(control)` (client-only helper in `client/gui/GuiClientCompat`, casts `control.dist()` to `GuiClientControl<?>`).
+6. `tools/gui_layer_client.py`: `GuiLayer(boolean client, String name[, int w, int h])` is the new constructor. A leading `boolean client` was threaded through 33 GuiLayer classes (35 ctors) and ~27 `new` sites (`player.level().isClientSide()` in creator lambdas, `isClient()` inside layers, `true` for OverlayGuiLayer, `false` in the server branch of STRUCTURE_SIGNAL). `GuiSyncHolder.GLOBAL.layer(id, TriFunction<Boolean, HolderLookup.Provider, CompoundTag, T>)`: the 6 dialog sites became `(client, provider, tag) -> new GuiDialogX(client)`. Local layers use `Function<CompoundTag, T>` (unchanged).
+7. `PropertyDispatch.TriFunction` no longer exists: local `common/util/function/TriFunction` replaces it in `LittleTileGuiCreator` / `LittleStructureGuiCreator`.
+8. `CreativeCore/src/fabric/java/team/creative/creativecore/common/be/BlockEntityCreative.java` (Fabric version): NeoForge-only `onDataPacket`/`handleUpdateTag`/abstract `handleUpdate` removed (vanilla applies packets and chunk tags via `loadAdditional(ValueInput)`); `isClient()` falls back to `FabricLoader` env + thread name "Render thread" when `level == null` (not identical to NeoForge's EffectiveSide; flagged). Effect: the 58 "BlockEntity cannot be converted to BETiles" errors vanished.
+9. `PORT_EVENTS.md`: NeoForge -> Fabric mapping plan (55 distinct `net.neoforged.*` APIs still imported). Only partly verified (see below).
+
+## Verified facts (from real sources/logs; reuse them)
+- **CreativeCore 26.x sources the user sent**: BlockEntityCreative (src/forge), KeyConfig (src/forge), IGuiParent, GuiControl, GuiParent, GuiLayer, GuiButton, GuiLabel, GuiCheckBox, GuiCreator, GuiControlDistHandler, GuiFlow, GuiControls, GuiManagerDist, GuiClientControl/Layer/Parent/Label, GuiComboBox*, GuiStackSelector, GuiInventoryGrid*, GuiSlot, GuiMenu, GuiScroll*, GuiTableScrollable, GuiTabs, GuiColorPlate, GuiIcon, GuiSeekBar, GuiSlider, GuiTabButton, GuiTimeline*, GuiSyncGlobalLayer/Holder/LocalLayer, GuiServerControl.
+- Minecraft 26.x serialization: `BlockEntity`/`Entity` use `ValueInput`/`ValueOutput` (`addAdditionalSaveData(ValueOutput)`, `EntityType.create(ValueInput, Level, EntitySpawnRequest)`, `ListTag` -> `ValueInputList`). `CompoundTag` API seen in CreativeCore: `getBooleanOr(key, default)`, `read(key, Codec)` (Optional), `store(key, Codec, value)`, `putBoolean`. `getCompound` etc. return Optional. `BlockEntity.getUpdateTag(HolderLookup.Provider)` and `saveWithFullMetadata(provider)` still exist.
+- GUI: `GuiCreator` takes `BiFunction<CompoundTag, Player, GuiLayer>`; `IGuiParent` has `isClient()`; `GuiControl.setVisible/setEnabled` forward to the dist handler; `GuiCheckBox.set(boolean)` (notifies), `get()`, `dist().set(v, false)` (silent); `GuiParent.setFlow(GuiFlow)`; `GuiFlow` is an abstract class with `STACK_X`, `FIT_X`, `STACK_Y`; `GuiParent.controls` is private; graphics type is `GuiGraphicsExtractor` (not `GuiGraphics`); input events are `net.minecraft.client.input.KeyEvent` / `MouseButtonEvent`.
+- **Control split (explains most of the 306 "does not override" errors):** a control has a common class (state + nested `XDist` interface) and a client class `GuiClientX<T extends X> extends GuiClientControl<T> implements XDist` holding `renderContent(GuiGraphicsExtractor, mouseX, mouseY)`, `flowX(width, preferred)`, `flowY(width, height, preferred)`, `mouseMoved`, `looseFocus`, etc. `GuiClientControl` has public `rect` (GuiControlRect), `enabled`, `visible`. The ~60 custom LittleTiles controls must be split the same way. **Not yet known:** how a control class is mapped to its client class (`createDist` registry).
+- Fabric API (26.1 javadoc, 0.144.3): `PlayerBlockBreakEvents.{Before,After,Canceled}`, `AttackBlockCallback`, `AttackEntityCallback`, `UseBlockCallback`, `BlockEvents.{UseItemOnCallback,UseWithoutItemCallback}`, `ItemEvents.{UseCallback,UseOnCallback}`. Since 26.1 Fabric names follow Mojang's official names. Renderer API and Indigo were ported to 26.2, so Phase 4 can use them on 26.3. The project uses Fabric API 0.165.0+26.3: re-check names against that javadoc before writing handlers.
+
+## Remaining error picture (round 8 log, 2,771 unique)
+306 "does not override" (148 in BETiles); 95+28 `RenderType`; 53+35+24 NeoForge packages / `neoforge.common` / client events; 45+21 `pose()`; 38 `ChunkLayerMap`; 25 `DeferredHolder`; 25 `BakedQuad`; 24 `GuiGraphics`; 23 `MultiBufferSource`; 22 `VertexFormat`; 22 `RegistryFriendlyByteBuf cannot be converted to CreativeByteBuf` (packet layer); `LittleParticle.lifetime` missing.
+
+## Open items, in priority order
+1. **BETiles ValueInput/ValueOutput port.** BETiles still has `loadAdditional(CompoundTag, Provider)`, `saveAdditional(CompoundTag, Provider)` and `handleUpdate(CompoundTag, boolean)`. Needs: drop `handleUpdate` (loadAdditional covers vanilla update packets), port to `loadAdditional(ValueInput)` / `saveAdditional(ValueOutput)` **without changing the on-disk tile format**. Needs a verified bridge between `CompoundTag` tile logic and `ValueInput`/`ValueOutput` (check the real API; do not guess). Same ValueInput/ValueOutput port for entities: EntitySit, PrimedSizedTnt, LittleEntity, LittleAnimationEntity, LittleLevelEntity, LittleChunkSerializer (`ListTag` -> `ValueInputList`).
+2. **Split custom GUI controls** into common + client classes (needs the createDist registry source; ask the user to run: `grep -rlE "createDist\(" $ROOT --include='*.java' | grep -v /build/ | zip ~/Downloads/cc-sources4.zip -@`, plus `CreativeByteBuf.java`, `CreativePacket.java`, any `GuiClientRegistry*`). Also: GuiGraphics -> GuiGraphicsExtractor.
+3. **GUI subclass constructors** (44 `super(...)`/`this(...)` calls in GuiParent subclasses need a parent parameter threaded through) and 10 places where `this` is not an IGuiParent (anonymous/non-GUI classes): GuiDialogSignalVirtualInput:106, GuiParticle:61,65,72,77,101,105,112,117, SignalMode:316. Pick the enclosing container by hand.
+4. **KeyConfig** (src/forge uses NeoForge `KeyModifier`/`InputEvent`): write a Fabric version. Keep modifier ordinals identical to NeoForge's enum order (CONTROL, SHIFT, ALT, NONE; unbound uses ordinal 3; **from memory, verify**) since configs store ordinals; modifier polling API in 26.3 must be checked.
+5. **Packet layer** (`CreativeByteBuf` vs `RegistryFriendlyByteBuf`) and networking via Fabric API.
+6. **NeoForge replacements** per PORT_EVENTS.md (events, `DeferredRegister`/`DeferredHolder`, capabilities -> Fabric Transfer API, `ICustomIngredient` -> `CustomIngredient`, `ModelData`, attachments). No codemod possible; check each callback name against the 0.165.0+26.3 javadoc first. Sleep events, `BreakSpeed`, `ItemEntityPickupEvent`, `PartEntity`, client-only `RightClickEmpty`/`LeftClickEmpty` likely need Mixins.
+7. **Phase 4 rendering rewrite** (`RenderType`, `ChunkLayerMap`, `BakedQuad`, `VertexFormat`, `pose()`, `MultiBufferSource`) with Fabric Renderer API/Indigo; Sodium/Iris compatibility; guard optional-mod integrations.
+8. Remaining manual GUI bits: reads of `GuiControl` members not covered above; `GuiLayer`-related leftovers after the next log; `LittleParticle.lifetime`.
+
+## Unverified assumptions (record and re-check)
+- BlockEntityCreative Fabric: vanilla's client packet/chunk-tag path ends in `loadAdditional(ValueInput)` (inferred from how NeoForge's defaults delegate); `isClient()` fallback is approximate.
+- `GuiCheckBox.get()` returning false on the server is acceptable for LittleTiles server-side logic.
+- `GuiClientCompat` casts `control.dist()`; only valid on the client.
+- jsr305 for `@Nullable` is a compile shortcut.
+- Event/registry/capability mapping table in PORT_EVENTS.md beyond the Player-event names above.
+
+## First steps for the next session
+1. Ask the user for the **newest build.log** after applying `littletiles-round9-overlay` (and upload the base overlay if starting fresh), plus `cc-sources4.zip`.
+2. Triage the log (dedupe by file+line+message; confirm source lines match round 9; check `CreativeCore:compileJava` and non-`src/port` errors), compare with the numbers above.
+3. Rerun `tools/fix_nbt_optionals.py`, `gui_parent_first.py`, `gui_members.py` and `gui_layer_client.py` on the new log (all idempotent), then take open items 1 and 2.
+4. Update PORT_NOTES.md each round, zip a cumulative overlay, hand over, ask for the next log. Stay in Phase 2b until it compiles clean; then Phase 3.

@@ -1,0 +1,21 @@
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'LittleTiles'
+
+// CreativeCore (26.x branch) is vendored as a git submodule and built from source,
+// using its Fabric build script (it also ships a NeoForge build.gradle we do not use).
+if (file('CreativeCore/build.fabric.gradle').exists()) {
+    include ':CreativeCore'
+    project(':CreativeCore').buildFileName = 'build.fabric.gradle'
+}
+
+// CreativeCore build script expects this from its own tooling; empty is what it sets anyway
+gradle.beforeProject { p ->
+    if (p.path == ":CreativeCore") p.ext.modDependencies = []
+}

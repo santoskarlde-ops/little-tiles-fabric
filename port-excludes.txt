@@ -1,0 +1,6 @@
+# Paths relative to src/port/java, prefix match. One per line. Remove lines as each area gets ported.
+# Mixins: not needed to compile, and they target 1.21 internals (Phase 3/4).
+team/creative/littletiles/mixin/
+# Optional-mod integrations (Sodium, Sable, Veil, C&B...): guarded and ported last (Phase 4).
+team/creative/littletiles/client/mod/
+team/creative/littletiles/common/mod/
