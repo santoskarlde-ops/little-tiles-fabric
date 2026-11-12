@@ -1,0 +1,23 @@
+{
+    "result": {
+        "id": "littletiles:bag"
+    },
+    "category": "equipment",
+    "pattern": [
+        " S ",
+        "LIL",
+        " L "
+    ],
+    "type": "minecraft:crafting_shaped",
+    "key": {
+        "L": {
+            "item": "minecraft:leather"
+        },
+        "I": {
+            "item": "minecraft:lapis_lazuli"
+        },
+        "S": {
+            "item": "minecraft:string"
+        }
+    }
+}

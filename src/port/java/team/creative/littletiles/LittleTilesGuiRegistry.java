@@ -1,0 +1,81 @@
+package team.creative.littletiles;
+
+import team.creative.creativecore.common.gui.creator.GuiCreator;
+import team.creative.creativecore.common.gui.creator.GuiCreator.GuiCreatorBasic;
+import team.creative.creativecore.common.gui.sync.GuiSyncGlobalLayer;
+import team.creative.creativecore.common.gui.sync.GuiSyncHolder;
+import team.creative.creativecore.common.util.inventory.ContainerSlotView;
+import team.creative.littletiles.api.common.tool.ILittleTool;
+import team.creative.littletiles.common.gui.handler.LittleStructureGuiCreator;
+import team.creative.littletiles.common.gui.premade.GuiExport;
+import team.creative.littletiles.common.gui.premade.GuiImport;
+import team.creative.littletiles.common.gui.signal.GuiSignalStructurePlaced;
+import team.creative.littletiles.common.gui.signal.dialog.GuiDialogSignal;
+import team.creative.littletiles.common.gui.signal.dialog.GuiDialogSignalEvents;
+import team.creative.littletiles.common.gui.signal.dialog.GuiDialogSignalInput;
+import team.creative.littletiles.common.gui.signal.dialog.GuiDialogSignalMode;
+import team.creative.littletiles.common.gui.signal.dialog.GuiDialogSignalVirtualInput;
+import team.creative.littletiles.common.gui.signal.dialog.GuiDialogSignalVirtualNumberInput;
+import team.creative.littletiles.common.gui.structure.Gui3dPrinter;
+import team.creative.littletiles.common.gui.structure.GuiBlankOMatic;
+import team.creative.littletiles.common.gui.structure.GuiBuilder;
+import team.creative.littletiles.common.gui.structure.GuiItemHolder;
+import team.creative.littletiles.common.gui.structure.GuiParticle;
+import team.creative.littletiles.common.gui.structure.GuiStorage;
+import team.creative.littletiles.common.gui.structure.GuiWorkbench;
+import team.creative.littletiles.common.structure.type.LittleItemHolder;
+import team.creative.littletiles.common.structure.type.LittleStorage;
+import team.creative.littletiles.common.structure.type.premade.Little3dPrinter;
+import team.creative.littletiles.common.structure.type.premade.LittleBlankOMatic;
+import team.creative.littletiles.common.structure.type.premade.LittleParticleEmitter;
+import team.creative.littletiles.common.structure.type.premade.LittleStructureBuilder;
+
+public class LittleTilesGuiRegistry {
+    
+    public static final GuiSyncGlobalLayer<GuiDialogSignalEvents> SIGNAL_EVENTS_DIALOG = GuiSyncHolder.GLOBAL.layer("signal_events_dialog", (client, provider, tag) -> new GuiDialogSignalEvents(client));
+    public static final GuiSyncGlobalLayer<GuiDialogSignal> SIGNAL_DIALOG = GuiSyncHolder.GLOBAL.layer("signal_dialog", (client, provider, tag) -> new GuiDialogSignal(client));
+    public static final GuiSyncGlobalLayer<GuiDialogSignalInput> INPUT_DIALOG = GuiSyncHolder.GLOBAL.layer("signal_input_dialog", (client, provider, tag) -> new GuiDialogSignalInput(client));
+    public static final GuiSyncGlobalLayer<GuiDialogSignalMode> MODE_DIALOG = GuiSyncHolder.GLOBAL.layer("signal_mode_dialog", (client, provider, tag) -> new GuiDialogSignalMode(client));
+    public static final GuiSyncGlobalLayer<GuiDialogSignalVirtualInput> VIRTUAL_INPUT_DIALOG = GuiSyncHolder.GLOBAL.layer("signal_virtual_input_dialog", (client, provider, tag) -> new GuiDialogSignalVirtualInput(client));
+    public static final GuiSyncGlobalLayer<GuiDialogSignalVirtualNumberInput> VIRTUAL_NUMBER_DIALOG = GuiSyncHolder.GLOBAL.layer("signal_virtual_number_dialog", (client, provider, tag) -> new GuiDialogSignalVirtualNumberInput(client));
+    
+    public static final LittleStructureGuiCreator STRUCTURE_SIGNAL = GuiCreator.register("structure_signal", new LittleStructureGuiCreator((nbt, player, structure) -> {
+        if (player.level().isClientSide()) {
+            var events = new GuiDialogSignalEvents(player.level().isClientSide());
+            events.init(new GuiSignalStructurePlaced(structure, true, true));
+            events.clear();
+            return events;
+        }
+        return new GuiDialogSignalEvents(false);
+    }, x -> x.wrenchEditSignal));
+    
+    public static final GuiCreatorBasic OPEN_CONFIG = GuiCreator.register("configure", new GuiCreatorBasic((nbt, player) -> {
+        if (player.getMainHandItem().getItem() instanceof ILittleTool tool)
+            return tool.getConfigure(player, ContainerSlotView.mainHand(player), nbt.getBoolean("second").orElse(false));
+        return null;
+    }));
+    
+    public static final LittleStructureGuiCreator STORAGE = GuiCreator.register("storage", new LittleStructureGuiCreator((nbt, player,
+            structure) -> new GuiStorage(player.level().isClientSide(), (LittleStorage) structure, player), x -> x.storageGui));
+    public static final LittleStructureGuiCreator BLANKOMATIC = GuiCreator.register("blankomatic", new LittleStructureGuiCreator((nbt, player,
+            structure) -> new GuiBlankOMatic(player.level().isClientSide(), (LittleBlankOMatic) structure), x -> x.blankomaticGui));
+    
+    public static final GuiCreatorBasic EXPORTER = GuiCreator.register("exporter", new GuiCreatorBasic((nbt, player) -> new GuiExport(player.level().isClientSide())));
+    public static final GuiCreatorBasic IMPORTER = GuiCreator.register("importer", new GuiCreatorBasic((nbt, player) -> new GuiImport(player.level().isClientSide())));
+    
+    public static final LittleStructureGuiCreator PARTICLE = GuiCreator.register("particle", new LittleStructureGuiCreator((nbt, player,
+            structure) -> new GuiParticle(player.level().isClientSide(), (LittleParticleEmitter) structure), x -> x.particleGui));
+    public static final LittleStructureGuiCreator ITEM_HOLDER = GuiCreator.register("item_holder", new LittleStructureGuiCreator((nbt, player,
+            structure) -> new GuiItemHolder(player.level().isClientSide(), (LittleItemHolder) structure), x -> x.itemHolderGui));
+    
+    public static final LittleStructureGuiCreator STRUCTURE_BUILDER = GuiCreator.register("structure_builder", new LittleStructureGuiCreator((nbt, player,
+            structure) -> new GuiBuilder(player.level().isClientSide(), (LittleStructureBuilder) structure), x -> x.structureBuilderGui));
+    public static final LittleStructureGuiCreator WORKBENCH = GuiCreator.register("workbench", new LittleStructureGuiCreator((nbt, player,
+            structure) -> new GuiWorkbench(player.level().isClientSide()), x -> x.workbenchGui));
+    
+    public static final LittleStructureGuiCreator PRINTER3D = GuiCreator.register("3d_printer", new LittleStructureGuiCreator((nbt, player,
+            structure) -> new Gui3dPrinter(player.level().isClientSide(), (Little3dPrinter) structure), x -> x.printer3dGui));
+    
+    public static void init() {}
+    
+}

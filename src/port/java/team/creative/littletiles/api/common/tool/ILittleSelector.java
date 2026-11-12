@@ -1,0 +1,31 @@
+package team.creative.littletiles.api.common.tool;
+
+import javax.annotation.Nullable;
+
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import team.creative.littletiles.LittleTilesRegistry;
+import team.creative.littletiles.common.grid.LittleGrid;
+import team.creative.littletiles.common.item.component.SelectionComponent;
+import team.creative.littletiles.common.placement.setting.PlacementPlayerSetting;
+
+public interface ILittleSelector {
+    
+    public boolean hasSelection(ItemStack stack);
+    
+    public default SelectionComponent getSelection(ItemStack stack) {
+        return SelectionComponent.getOrDefault(stack);
+    }
+    
+    public default void setSelection(ItemStack stack, @Nullable SelectionComponent component) {
+        if (component == null)
+            stack.remove(LittleTilesRegistry.SELECTION.value());
+        else
+            stack.set(LittleTilesRegistry.SELECTION.value(), component);
+    }
+    
+    public default LittleGrid getSelectorGrid(Player player, ItemStack stack) {
+        return PlacementPlayerSetting.grid(player);
+    }
+    
+}

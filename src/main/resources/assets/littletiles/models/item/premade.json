@@ -1,0 +1,9 @@
+{
+    "loader": "creativecore:layer",
+    "layers": [
+        {
+            "loader": "creativecore:box",
+            "item": "littletiles:premade"
+        }
+    ]
+}

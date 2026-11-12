@@ -1,0 +1,222 @@
+package team.creative.littletiles.common.structure.signal.input;
+
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
+import team.creative.creativecore.common.util.type.itr.SingleIterator;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.common.structure.signal.SignalContext;
+import team.creative.littletiles.common.structure.signal.SignalState;
+import team.creative.littletiles.common.structure.signal.logic.SignalLogicOperator;
+import team.creative.littletiles.common.structure.signal.logic.SignalPatternParser;
+import team.creative.littletiles.common.structure.signal.logic.SignalTarget;
+
+public class SignalInputVariable extends SignalInputCondition {
+    
+    private static int[] parseInputExact(SignalPatternParser parser) throws ParseException {
+        List<Integer> indexes = new ArrayList<>();
+        while (parser.hasNext()) {
+            char next = parser.lookForNext(true);
+            if (next == '}') {
+                parser.next(true);
+                break;
+            } else if (Character.isDigit(next) || next == '*') {
+                if (next == '*') {
+                    indexes.add(2);
+                    next = parser.next(true);
+                    if (next == '}')
+                        break;
+                    continue;
+                } else {
+                    indexes.add(Integer.parseInt("" + next));
+                    next = parser.next(true);
+                    if (next == '}')
+                        break;
+                    continue;
+                }
+            } else
+                throw parser.invalidChar(next);
+        }
+        if (indexes.isEmpty())
+            return null;
+        int[] result = new int[indexes.size()];
+        for (int i = 0; i < result.length; i++)
+            result[i] = indexes.get(i);
+        return result;
+    }
+    
+    public static SignalInputVariable parseInput(SignalPatternParser parser, boolean insideVariable) throws ParseException {
+        return parseInput(parser, insideVariable, false);
+    }
+    
+    public static SignalInputVariable parseInput(SignalPatternParser parser, boolean insideVariable, boolean forceBitwise) throws ParseException {
+        SignalTarget target = SignalTarget.parseTarget(parser, false, insideVariable);
+        if (!insideVariable && parser.lookForNext(false) == '{') {
+            parser.next(false);
+            char next = parser.lookForNext(true);
+            if (Character.isDigit(next) || next == '*') {
+                int[] indexes = parseInputExact(parser);
+                if (indexes != null)
+                    return new SignalInputVariablePattern(target, indexes, parsePosition(parser));
+                return forceBitwise ? new SignalInputVariableBitwise(target, parsePosition(parser)) : new SignalInputVariable(target, parsePosition(parser));
+            }
+            
+            SignalLogicOperator operator = SignalLogicOperator.getOperator(next);
+            if (operator != null) {
+                parser.next(true);
+                if (parser.next(true) == '}')
+                    return new SignalInputVariableOperator(target, operator, parsePosition(parser));
+                else
+                    throw parser.invalidChar(parser.current());
+            }
+            
+            return new SignalInputVariableEquation(target, SignalInputCondition.parseExpression(parser, new char[] { '}' }, false, true), parsePosition(parser));
+        } else
+            return forceBitwise ? new SignalInputVariableBitwise(target, parsePosition(parser)) : new SignalInputVariable(target, parsePosition(parser));
+    }
+    
+    public final SignalTarget target;
+    
+    public SignalInputVariable(SignalTarget target, SignalPosition position) {
+        super(position);
+        this.target = target;
+    }
+    
+    @Override
+    public SignalState test(SignalContext context, boolean forceBitwise) {
+        SignalState state = target.getState(context);
+        if (forceBitwise)
+            return state;
+        return SignalState.of(state.any());
+        
+    }
+    
+    @Override
+    public boolean testIndex(SignalState state) {
+        if (target.isIndexVariable())
+            return state.is(target.child);
+        return false;
+    }
+    
+    @Override
+    public String write() {
+        return target.write() + writePosition();
+    }
+    
+    @Override
+    protected double internalDelay() {
+        return LittleTiles.CONFIG.signal.variableDuration;
+    }
+    
+    @Override
+    public SignalTarget target() {
+        return target;
+    }
+    
+    @Override
+    public Iterator<SignalInputCondition> nested() {
+        return Collections.emptyIterator();
+    }
+    
+    public static class SignalInputVariableBitwise extends SignalInputVariable {
+        
+        public SignalInputVariableBitwise(SignalTarget target, SignalPosition position) {
+            super(target, position);
+        }
+        
+        @Override
+        public SignalState test(SignalContext context, boolean forceBitwise) {
+            return target.getState(context);
+        }
+        
+    }
+    
+    public static class SignalInputVariableOperator extends SignalInputVariable {
+        
+        public final SignalLogicOperator operator;
+        
+        public SignalInputVariableOperator(SignalTarget target, SignalLogicOperator operator, SignalPosition position) {
+            super(target, position);
+            this.operator = operator;
+        }
+        
+        @Override
+        public SignalState test(SignalContext context, boolean forceBitwise) {
+            SignalState state = target.getState(context);
+            boolean result = false;
+            int bandwidth = target.bandwidth(context);
+            for (int i = 0; i < bandwidth; i++)
+                if (i == 0)
+                    result = state.is(i);
+                else
+                    result = operator.perform(result, state.is(i));
+            return SignalState.of(result);
+        }
+        
+        @Override
+        public String write() {
+            return target.write() + "{" + (operator == SignalLogicOperator.AND ? "&" : operator.operator) + "}" + writePosition();
+        }
+    }
+    
+    public static class SignalInputVariablePattern extends SignalInputVariable {
+        
+        public final int[] indexes;
+        
+        public SignalInputVariablePattern(SignalTarget target, int[] indexes, SignalPosition position) {
+            super(target, position);
+            this.indexes = indexes;
+        }
+        
+        @Override
+        public SignalState test(SignalContext context, boolean forceBitwise) {
+            return SignalState.of(target.getState(context).is(indexes));
+        }
+        
+        @Override
+        public String write() {
+            String result = target.write() + "{";
+            for (int i = 0; i < indexes.length; i++) {
+                int index = indexes[i];
+                result += "" + (index >= 2 ? "*" : index);
+            }
+            return result + "}" + writePosition();
+        }
+        
+    }
+    
+    public static class SignalInputVariableEquation extends SignalInputVariable {
+        
+        public final SignalInputCondition condition;
+        
+        public SignalInputVariableEquation(SignalTarget target, SignalInputCondition condition, SignalPosition position) {
+            super(target, position);
+            this.condition = condition;
+        }
+        
+        @Override
+        public SignalState test(SignalContext context, boolean forceBitwise) {
+            return SignalState.of(condition.testIndex(target.getState(context)));
+        }
+        
+        @Override
+        public String write() {
+            return target.write() + "{" + condition.write() + "}" + writePosition();
+        }
+        
+        @Override
+        protected double internalDelay() {
+            return super.calculateDelay() + condition.calculateDelay();
+        }
+        
+        @Override
+        public Iterator<SignalInputCondition> nested() {
+            return new SingleIterator<>(condition);
+        }
+        
+    }
+    
+}

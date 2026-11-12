@@ -1,0 +1,24 @@
+package team.creative.littletiles.mixin.client.render;
+
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Redirect;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import team.creative.littletiles.common.math.vec.LittleHitResult;
+
+@Mixin(GameRenderer.class)
+public class GameRendererMixin {
+    
+    @Redirect(method = "filterHitResult", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/phys/HitResult;getLocation()Lnet/minecraft/world/phys/Vec3;"), require = 1)
+    private static Vec3 hitLocation(HitResult hit) {
+        if (hit instanceof LittleHitResult result)
+            return result.getRealLocation(Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false));
+        return hit.getLocation();
+        
+    }
+    
+}

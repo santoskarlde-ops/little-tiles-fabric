@@ -1,0 +1,35 @@
+package team.creative.littletiles.common.placement.shape.config;
+
+import java.util.List;
+
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
+import net.neoforged.api.distmarker.Dist;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import team.creative.creativecore.common.config.api.CreativeConfig;
+import team.creative.creativecore.common.util.text.TextBuilder;
+import team.creative.littletiles.common.placement.shape.config.HollowThicknessConfig.GridRange;
+import team.creative.littletiles.common.placement.shape.type.LittleShapeCurve.ShapeInterpolation;
+
+public class InterpolationThicknessConfig extends LittleShapeConfig {
+    
+    public ShapeInterpolation interpolation = ShapeInterpolation.HERMITE;
+    @CreativeConfig.IntRangeSupplier(supplier = GridRange.class)
+    public int thickness = 1;
+    
+    @Override
+    public List<Component> information() {
+        TextBuilder text = new TextBuilder().textColor(ChatFormatting.WHITE).translate("gui.interpolation").text(": ").textColor(ChatFormatting.GRAY).add(interpolation
+                .translatable()).newLine().textColor(ChatFormatting.WHITE).translate("shape.config.thickness").text(": ").textColor(ChatFormatting.GRAY).text("" + thickness);
+        return text.build();
+    }
+    
+    @Override
+    @Environment(EnvType.CLIENT)
+    public boolean react(Player player, KeyMapping key) {
+        return false;
+    }
+}

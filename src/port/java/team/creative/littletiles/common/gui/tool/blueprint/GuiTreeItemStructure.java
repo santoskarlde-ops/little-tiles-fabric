@@ -1,0 +1,460 @@
+package team.creative.littletiles.common.gui.tool.blueprint;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+import javax.annotation.Nullable;
+
+import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.HolderLookup.Provider;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvent;
+import net.neoforged.api.distmarker.Dist;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import team.creative.creativecore.common.gui.GuiControl;
+import team.creative.creativecore.common.gui.GuiParent;
+import team.creative.creativecore.common.gui.VAlign;
+import team.creative.creativecore.common.gui.control.parent.GuiScrollY;
+import team.creative.creativecore.common.gui.control.simple.GuiButton;
+import team.creative.creativecore.common.gui.control.simple.GuiLabel;
+import team.creative.creativecore.common.gui.control.simple.GuiTextfield;
+import team.creative.creativecore.common.gui.control.tree.GuiTree;
+import team.creative.creativecore.common.gui.control.tree.GuiTreeItem;
+import team.creative.creativecore.common.gui.flow.GuiFlow;
+import team.creative.creativecore.common.gui.style.ControlFormatting;
+import team.creative.creativecore.common.util.mc.LanguageUtils;
+import team.creative.littletiles.LittleTilesGuiRegistry;
+import team.creative.littletiles.client.level.little.FakeClientLevel;
+import team.creative.littletiles.common.action.exception.LittleActionException;
+import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
+import team.creative.littletiles.common.gui.AnimationPreview;
+import team.creative.littletiles.common.gui.signal.GuiComponentSearch;
+import team.creative.littletiles.common.gui.signal.GuiSignalComponent;
+import team.creative.littletiles.common.gui.signal.IGuiSignalStructure;
+import team.creative.littletiles.common.gui.signal.dialog.GuiDialogSignalEvents.GuiSignalEvent;
+import team.creative.littletiles.common.gui.tool.blueprint.test.BlueprintTestError;
+import team.creative.littletiles.common.math.vec.LittleVecGrid;
+import team.creative.littletiles.common.structure.LittleStructure;
+import team.creative.littletiles.common.structure.LittleStructureType;
+import team.creative.littletiles.common.structure.animation.PhysicalState;
+import team.creative.littletiles.common.structure.animation.context.AnimationContext;
+import team.creative.littletiles.common.structure.registry.gui.LittleStructureGui;
+import team.creative.littletiles.common.structure.registry.gui.LittleStructureGuiRegistry;
+import team.creative.littletiles.common.structure.relative.StructureAbsolute;
+import team.creative.littletiles.common.structure.signal.output.InternalSignalOutput;
+import team.creative.littletiles.common.structure.signal.output.SignalExternalOutputHandler;
+import team.creative.littletiles.server.level.little.FakeServerLevel;
+
+public class GuiTreeItemStructure extends GuiTreeItem implements AnimationContext, IGuiSignalStructure {
+    
+    public final GuiBlueprint blueprint;
+    public LittleGroup group;
+    public LittleStructure structure;
+    public LittleStructureGui gui;
+    public GuiComponentSearch signalSearch = new GuiComponentSearch(this);
+    
+    private GuiSignalEvent[] internalOutputs;
+    private HashMap<Integer, GuiSignalEvent> externalOutputs;
+    private LittleVecGrid offset;
+    private int index;
+    private String title;
+    private List<BlueprintTestError> errors;
+    
+    public PhysicalState physicalState = new PhysicalState();
+    private StructureAbsolute center;
+    private StructureAbsolute lastCenter;
+    
+    public GuiTreeItemStructure(GuiBlueprint blueprint, GuiTree tree, LittleGroup group, int index) {
+        super(tree, "tree_item", tree);
+        this.blueprint = blueprint;
+        this.group = group;
+        if (group.hasStructure()) {
+            this.structure = group.getStructureType().createStructure(null);
+            this.structure.load(group.getStructureTag(), blueprint.provider());
+        }
+        this.index = index;
+        refreshAnimation();
+        updateTitle();
+        updateSignalOutputs();
+    }
+    
+    private void updateSignalOutputs() {
+        GuiSignalComponent[] internal = signalSearch.internalOutputs();
+        if (internal != null) {
+            this.internalOutputs = new GuiSignalEvent[internal.length];
+            for (int i = 0; i < internal.length; i++) {
+                if (structure == null)
+                    this.internalOutputs[i] = new GuiSignalEvent(internal[i], (InternalSignalOutput) null);
+                else
+                    this.internalOutputs[i] = new GuiSignalEvent(internal[i], structure.getOutput(i));
+            }
+        } else
+            this.internalOutputs = null;
+        
+        externalOutputs = new HashMap<>();
+        for (GuiSignalComponent output : signalSearch.externalOutputs())
+            if (structure == null)
+                externalOutputs.put(output.index(), new GuiSignalEvent(output, (InternalSignalOutput) null));
+            else if (output.external())
+                externalOutputs.put(output.index(), new GuiSignalEvent(output, structure.getExternalOutput(output.index())));
+    }
+    public LittleStructureType getStructureType() {
+        if (gui != null)
+            return gui.type();
+        if (structure != null)
+            return structure.type;
+        return null;
+    }
+    public GuiComponentSearch getSignalSearch() {
+        return signalSearch;
+    }
+    public GuiSignalEvent[] internalOutputs() {
+        return internalOutputs;
+    }
+    
+    public int externalOutputCount() {
+        return externalOutputs.size();
+    }
+    public Iterable<GuiSignalEvent> externalOutputs() {
+        return externalOutputs.values();
+    }
+    
+    public GuiSignalEvent getInternalOutput(int index) {
+        if (internalOutputs != null && index >= 0 && index < internalOutputs.length)
+            return internalOutputs[index];
+        return null;
+    }
+    
+    public GuiSignalEvent getExternalOutput(int index) {
+        return externalOutputs.get(index);
+    }
+    
+    public void setInternalOutput(int index, GuiSignalEvent event) {
+        if (internalOutputs != null && index >= 0 && index < internalOutputs.length)
+            internalOutputs[index] = event;
+    }
+    
+    public void setExternalOutput(int index, GuiSignalEvent event) {
+        externalOutputs.put(index, event);
+    }
+    
+    @Nullable
+    public GuiSignalEvent getSignalOutput(boolean external, int index) {
+        if (external)
+            return getExternalOutput(index);
+        return getInternalOutput(index);
+    }
+    public IGuiSignalStructure parent() {
+        if (getParentItem() instanceof IGuiSignalStructure p)
+            return p;
+        return null;
+    }
+    public LittleStructure getStructure() {
+        return structure;
+    }
+    public Iterable<IGuiSignalStructure> children() {
+        return (Iterable<IGuiSignalStructure>) (Object) items();
+    }
+    public void setSignalOutputs(List<GuiSignalEvent> events) {
+        for (GuiSignalEvent event : events)
+            setSignalOutput(event.component.external(), event.component.index(), event);
+    }
+    
+    @Nullable
+    public void setSignalOutput(boolean external, int index, GuiSignalEvent event) {
+        if (external)
+            setExternalOutput(index, event);
+        else
+            setInternalOutput(index, event);
+    }
+    
+    private void setEventsToStructure() {
+        if (structure == null)
+            return;
+        
+        for (int i = 0; i < internalOutputs.length; i++) {
+            GuiSignalEvent event = internalOutputs[i];
+            InternalSignalOutput output = structure.getOutput(i);
+            output.condition = event.condition;
+            output.handler = event.getHandler(output, structure);
+            output.outputPosition = event.outputPostion;
+        }
+        
+        Int2ObjectMap<SignalExternalOutputHandler> map = new Int2ObjectArrayMap<>();
+        for (GuiSignalEvent event : externalOutputs.values())
+            if (event.condition != null)
+                map.put(event.component.index(), new SignalExternalOutputHandler(null, event.component.index(), event.condition, (x) -> event.getHandler(x,
+                    structure), event.outputPostion));
+        structure.setExternalOutputs(map);
+    }
+    protected void select() {
+        super.select();
+        updateTitle();
+        blueprint.types.forceSelect(LittleStructureGuiRegistry.get(structure != null ? structure.type : null, group));
+    }
+    
+    public void onNameChanged(GuiTextfield field) {
+        String text = field.getText();
+        if (text.isBlank())
+            text = null;
+        updateTitle(text, gui.type());
+        if (tree.dist() != null)
+            tree.dist().reflowTree();
+    }
+    
+    public void load() {
+        blueprint.animation.reset();
+        gui = blueprint.types.selected();
+        blueprint.control = gui.create(this);
+        blueprint.control.setExpandableY();
+        blueprint.config.clear();
+        GuiScrollY scroll = new GuiScrollY(this, "config") {
+            public ControlFormatting getControlFormatting() {
+                return ControlFormatting.TRANSPARENT;
+            }
+            
+        }.setHover(true);
+        scroll.add(blueprint.control);
+        blueprint.config.add(scroll);
+        blueprint.control.create(structure);
+        blueprint.config.init();
+        blueprint.types.setEnabled(blueprint.control.canChangeType());
+        
+        GuiParent info = new GuiParent(this, "infoStructure", GuiFlow.STACK_X).setVAlign(VAlign.CENTER);
+        blueprint.config.add(info);
+        
+        info.add(new GuiLabel(info, "info").setTitle(Component.literal(group.totalTiles() + " " + LanguageUtils.translate("gui.tile.count") + " " + group
+                .totalBoxes() + " " + LanguageUtils.translate("gui.box.count"))));
+        
+        GuiParent parent = new GuiParent(this, "bottomStructure", GuiFlow.STACK_X).setVAlign(VAlign.CENTER);
+        blueprint.config.add(parent);
+        
+        parent.add(new GuiLabel(parent, "name_label").setTranslate("gui.blueprint.structure.name"));
+        GuiTextfield text = new GuiTextfield(this, "name");
+        if (structure != null && structure.name != null)
+            text.setText(structure.name);
+        else
+            text.setText("");
+        parent.add(text.setEnabled(gui.supportsName()).setDim(100, 7));
+        parent.add(new GuiButton(parent, "signal", x -> LittleTilesGuiRegistry.SIGNAL_EVENTS_DIALOG.open(getIntegratedParent(), new CompoundTag()).init(this)).setTranslate(
+            "gui.signal.events").setEnabled(gui.type() != null));
+        updateSignalOutputs();
+        
+        onNameChanged(text);
+        blueprint.reflow();
+    }
+    
+    public void save() {
+        LittleStructureType type = blueprint.types.selected().type();
+        structure = blueprint.control.save(type != null ? type.createStructure(null) : null);
+        if (structure != null) {
+            GuiParent parent = blueprint.config.get("bottomStructure");
+            GuiTextfield textfield = parent.get("name");
+            structure.name = textfield.getText().isBlank() ? null : textfield.getText();
+        }
+        setEventsToStructure();
+        updateTitle();
+    }
+    protected void deselect() {
+        super.deselect();
+        updateTitle();
+        save();
+    }
+    
+    public void updateTitle() {
+        updateTitle(structure != null ? structure.name : null, structure != null ? structure.type : null);
+    }
+    
+    protected void updateTitle(String name, LittleStructureType type) {
+        int index = getParentItem() != null ? getParentItem().indexOf(this) : this.index;
+        boolean hasStructureName = true;
+        if (name == null) {
+            hasStructureName = false;
+            if (type != null)
+                name = type.id + " " + index;
+            else
+                name = "none " + index;
+        }
+        
+        if (hasStructureName)
+            name = ChatFormatting.ITALIC + "" + name;
+        
+        this.title = name;
+        
+        if (selected())
+            name = "<" + name + ">";
+        
+        if (errors != null && !errors.isEmpty())
+            name = ChatFormatting.RED + name;
+        
+        setTitle(Component.literal(name));
+    }
+    
+    public void updateTooltip() {
+        if (errors == null || errors.isEmpty()) {
+            setTooltip((List) null);
+            return;
+        }
+        
+        List<Component> tooltip = new ArrayList<>();
+        if (errors.size() == 1)
+            tooltip.add(translatable("gui.blueprint.test.error.single"));
+        else
+            tooltip.add(translatable("gui.blueprint.test.error.multiple", errors.size()));
+        
+        for (BlueprintTestError error : errors)
+            tooltip.add(error.tooltip(this));
+        
+        setTooltip(tooltip);
+    }
+    
+    public void clearErrors() {
+        if (errors != null)
+            errors.clear();
+    }
+    
+    public void addError(BlueprintTestError error) {
+        if (errors == null)
+            errors = new ArrayList<>();
+        errors.add(error);
+    }
+    public String getTitle() {
+        return title;
+    }
+    
+    @Environment(EnvType.CLIENT)
+    public void refreshAnimation() {
+        FakeClientLevel fakeLevel = FakeServerLevel.createClient("animationViewer");
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return new AnimationPreview(fakeLevel, structure, group, provider());
+            } catch (LittleActionException e) {
+                throw new RuntimeException(e);
+            }
+        }).whenComplete((preview, throwable) -> {
+            blueprint.storage.completed(this, preview);
+            if (throwable != null)
+                throwable.printStackTrace();
+        });
+    }
+    public void removed() {
+        super.removed();
+        if (!moving)
+            blueprint.storage.removed(this);
+    }
+    
+    public GuiTreeItemStructure duplicate() {
+        CompoundTag nbt;
+        if (structure == null)
+            nbt = null;
+        else {
+            nbt = new CompoundTag();
+            structure.save(nbt, blueprint.provider());
+        }
+        GuiTreeItemStructure item = new GuiTreeItemStructure(blueprint, tree, new LittleGroup(nbt, group.copy(), Collections.EMPTY_LIST), getParentItem().itemsCount());
+        for (GuiTreeItem child : items())
+            if (child instanceof GuiTreeItemStructure s)
+                item.addItem(s.duplicate());
+        return item;
+    }
+    
+    public void setOffset(LittleVecGrid vec) {
+        this.offset = vec;
+    }
+    
+    public LittleVecGrid getOverallOffest() {
+        if (getParentItem() instanceof GuiTreeItemStructure p) {
+            if (offset == null)
+                return p.getOverallOffest();
+            LittleVecGrid vec = offset.copy();
+            var parent = p.getOverallOffest();
+            if (parent != null)
+                vec.add(parent);
+            return vec;
+        }
+        return offset;
+    }
+    
+    public LittleVecGrid getOffset() {
+        return offset;
+    }
+    
+    public void move(LittleVecGrid vec) {
+        group.move(vec);
+        if (group.hasStructure()) {
+            this.structure = group.getStructureType().createStructure(null);
+            this.structure.load(group.getStructureTag(), blueprint.provider());
+        }
+        
+        if (hasNewCenter())
+            center.move(vec);
+        else if (lastCenter != null) {
+            lastCenter.move(vec);
+            setNewCenter(lastCenter);
+        }
+        refreshAnimation();
+        
+        for (GuiTreeItem item : items())
+            ((GuiTreeItemStructure) item).move(vec);
+    }
+    
+    public void applyOffset() {
+        if (offset != null)
+            move(offset);
+        offset = null;
+    }
+    
+    public void resetOffset() {
+        offset = null;
+    }
+    
+    @Environment(EnvType.CLIENT)
+    public void prepareRendering(AnimationPreview preview) {
+        preview.set(physicalState);
+        if (hasNewCenter()) {
+            preview.setCenter(center);
+            lastCenter = center;
+            center = null;
+        }
+    }
+    
+    public void setNewCenter(StructureAbsolute center) {
+        this.center = center;
+    }
+    
+    public StructureAbsolute getCenter() {
+        return center;
+    }
+    
+    public boolean hasNewCenter() {
+        return center != null;
+    }
+    @Environment(EnvType.CLIENT)
+    public void play(SoundEvent event, float volume, float pitch) {
+        if (dist() != null)
+            dist().playSound(event, volume, pitch);
+    }
+    public boolean isGui() {
+        return true;
+    }
+    public AnimationContext getChild(int id) {
+        if (id < 0 || itemsCount() <= id)
+            return null;
+        return (AnimationContext) getItem(id);
+    }
+    public LittleStructure getChildStructure(int id) {
+        if (id < 0 || itemsCount() <= id)
+            return null;
+        return ((GuiTreeItemStructure) getItem(id)).structure;
+    }
+    public Provider provider() {
+        return blueprint.provider();
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "result": {
+        "id": "littletiles:colored_lava"
+    },
+    "category": "building",
+    "ingredients": [
+        {
+            "item": "minecraft:lava_bucket"
+        }
+    ],
+    "type": "minecraft:crafting_shapeless"
+}

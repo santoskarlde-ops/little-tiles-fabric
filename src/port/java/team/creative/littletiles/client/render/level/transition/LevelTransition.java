@@ -1,0 +1,213 @@
+package team.creative.littletiles.client.render.level.transition;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.UUID;
+import java.util.function.Function;
+
+import javax.annotation.Nullable;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.client.LittleTilesClient;
+import team.creative.littletiles.client.level.LittleAnimationHandlerClient;
+import team.creative.littletiles.client.render.cache.IBlockBufferCache;
+import team.creative.littletiles.client.render.cache.LayeredBufferCache;
+import team.creative.littletiles.client.render.cache.buffer.AdditionalBuffers;
+import team.creative.littletiles.client.render.cache.buffer.BufferCache;
+import team.creative.littletiles.client.render.cache.buffer.BufferCollection;
+import team.creative.littletiles.client.render.cache.buffer.ChunkBufferUploader;
+import team.creative.littletiles.client.render.cache.build.RenderingLevelHandler;
+import team.creative.littletiles.client.render.mc.RenderChunkExtender;
+import team.creative.littletiles.common.block.entity.BETiles;
+import team.creative.littletiles.common.block.mc.BlockTile;
+
+public class LevelTransition {
+    
+    public final Level targetLevel;
+    public final RenderingLevelHandler target;
+    private final Long2ObjectMap<SectionAdditional> sections = new Long2ObjectOpenHashMap<>();
+    private int waitTill;
+    
+    public LevelTransition(Level level, BlockPos pos) {
+        this.targetLevel = level;
+        this.target = RenderingLevelHandler.of(level, pos);
+    }
+    
+    private SectionAdditional getOrCreateSection(RenderingLevelHandler origin, Level originLevel, BlockPos pos) {
+        long section = SectionPos.asLong(pos);
+        var s = sections.get(section);
+        if (s == null) {
+            origin.getRenderChunk(originLevel, section).backToRAM(); // Make sure data is available
+            sections.put(section, s = new SectionAdditional(target.getRenderChunk(targetLevel, section), SectionPos.of(pos)));
+        }
+        return s;
+    }
+    
+    public boolean queue(UUID uuid, Level originLevel, Iterable<BETiles> blocks) {
+        RenderingLevelHandler origin = RenderingLevelHandler.of(originLevel, null); // BlockPos is null because it is always an animation.
+        
+        for (BETiles be : blocks)
+            getOrCreateSection(origin, originLevel, be.getBlockPos()).queueNew(uuid, origin, originLevel, be);
+        
+        waitTill = LittleTilesClient.ANIMATION_HANDLER.longTickIndex + LittleAnimationHandlerClient.MAX_INTERVALS_WAITING;
+        
+        for (SectionAdditional section : sections.values())
+            section.finishInitial();
+        
+        return sections.isEmpty();
+    }
+    
+    public boolean isEmpty() {
+        return sections.isEmpty();
+    }
+    
+    public boolean longTick(int index) {
+        return index >= waitTill;
+    }
+    
+    public void delete() {
+        if (sections.isEmpty())
+            return;
+        for (SectionAdditional section : sections.values())
+            section.cleanup();
+    }
+    
+    public class SectionAdditional {
+        
+        public final RenderChunkExtender section;
+        public final SectionPos pos;
+        private final HashMap<BlockPos, BlockAdditional> entries = new HashMap<>();
+        
+        public SectionAdditional(RenderChunkExtender section, SectionPos pos) {
+            this.section = section;
+            this.pos = pos;
+            this.section.backToRAM();
+            this.section.setAdditional(this);
+        }
+        
+        private BlockAdditional getOrCreateBlock(BlockPos pos) {
+            BlockAdditional data = entries.get(pos);
+            if (data == null)
+                entries.put(pos, data = new BlockAdditional());
+            return data;
+        }
+        
+        public void queueNew(UUID uuid, RenderingLevelHandler origin, Level originLevel, BETiles be) {
+            getOrCreateBlock(be.getBlockPos()).queueNew(uuid, origin, originLevel, be, pos);
+        }
+        
+        public void appendRenderData(boolean markUpdateOtherwise) {
+            List<LayeredBufferCache> buffers = new ArrayList<>();
+            for (BlockAdditional d : entries.values())
+                for (LayeredBufferCache b : d.additionals())
+                    buffers.add(b);
+            if (!section.appendRenderData(buffers) && markUpdateOtherwise)
+                markReadyForUpdate();
+        }
+        
+        public synchronized void onSectionUploads(@Nullable Function<RenderType, ChunkBufferUploader> builderSupplier, Function<RenderType, BufferCollection> bufferSupplier) {
+            if (deleteAndRemoveIfEmpty())
+                sections.remove(pos.asLong());
+            else if (LittleTiles.CONFIG.rendering.uploadToVBODirectly)
+                for (BlockAdditional additional : entries.values())
+                    if (additional.getAndClearUploaded()) // If a buffer has not been added to the section yet it is done afterwards to ensure smooth transition
+                        additional.uploadAdditionalExtra(builderSupplier, bufferSupplier);
+        }
+        
+        public void markReadyForUpdate() {
+            section.markReadyForUpdate(false);
+        }
+        
+        private synchronized boolean deleteAndRemoveIfEmpty() {
+            for (Iterator<Entry<BlockPos, BlockAdditional>> iterator = entries.entrySet().iterator(); iterator.hasNext();)
+                if (iterator.next().getValue().isRemoved())
+                    iterator.remove();
+                
+            return removeIfEmpty();
+        }
+        
+        public void finishInitial() {
+            if (LittleTiles.CONFIG.rendering.uploadToVBODirectly)
+                appendRenderData(true);
+            else
+                markReadyForUpdate();
+        }
+        
+        /** For important to be called otherwise it will remain bound to the render section **/
+        public boolean removeIfEmpty() {
+            if (entries.isEmpty()) {
+                section.setAdditional(null);
+                return true;
+            }
+            return false;
+        }
+        
+        public void cleanup() {
+            boolean changed = false;
+            for (Iterator<Entry<BlockPos, BlockAdditional>> iterator = entries.entrySet().iterator(); iterator.hasNext();) {
+                var entry = iterator.next();
+                var target = BlockTile.loadBE(targetLevel, entry.getKey());
+                if (target != null && target.render.hasAdditionalBuffers()) {
+                    target.render.clearAdditional();
+                    changed = true;
+                }
+            }
+            if (changed)
+                markReadyForUpdate();
+        }
+    }
+    
+    private class BlockAdditional extends AdditionalBuffers {
+        
+        private volatile boolean removed;
+        private volatile boolean uploaded;
+        
+        public void queueNew(UUID uuid, RenderingLevelHandler origin, Level originLevel, BETiles be, SectionPos pos) {
+            IBlockBufferCache cache = be.render.buffers();
+            Vec3 vec = RenderingLevelHandler.offsetCorrection(target, targetLevel, origin, originLevel, pos);
+            int sectionIndex = target.sectionIndex(targetLevel, pos.asLong());
+            LayeredBufferCache layers = new LayeredBufferCache();
+            for (RenderType layer : RenderType.CHUNK_BUFFER_LAYERS) {
+                BufferCache holder = cache.getIncludingAdditional(layer);
+                if (holder == null || !holder.isAvailable())
+                    continue;
+                if (vec != null)
+                    holder.applyOffset(vec, sectionIndex);
+                layers.put(layer, holder);
+            }
+            additional(uuid, layers);
+            
+            var target = BlockTile.loadBE(targetLevel, be.getBlockPos());
+            if (target == null) {
+                // Force block on client side
+                targetLevel.setBlock(be.getBlockPos(), BlockTile.getState(be), 0);
+                target = BlockTile.loadBE(targetLevel, be.getBlockPos());
+            }
+            
+            target.render.additionalBuffers(x -> x.additional(this, () -> removed = true, () -> uploaded = true));
+        }
+        
+        public boolean isRemoved() {
+            return removed;
+        }
+        
+        public boolean getAndClearUploaded() {
+            if (uploaded) {
+                uploaded = false;
+                return true;
+            }
+            return false;
+        }
+    }
+    
+}

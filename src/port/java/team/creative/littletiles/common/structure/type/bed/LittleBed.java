@@ -1,0 +1,208 @@
+package team.creative.littletiles.common.structure.type.bed;
+
+import java.util.List;
+
+import com.mojang.datafixers.util.Either;
+
+import net.minecraft.advancements.triggers.CriteriaTriggers;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.stats.Stats;
+import net.minecraft.util.Unit;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.attribute.BedRule;
+import net.minecraft.world.attribute.EnvironmentAttributes;
+import net.minecraft.world.level.storage.LevelData.RespawnData;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Player.BedSleepingProblem;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.api.distmarker.Dist;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import net.neoforged.neoforge.event.EventHooks;
+import team.creative.creativecore.common.level.ISubLevel;
+import team.creative.creativecore.common.util.math.base.Facing;
+import team.creative.creativecore.common.util.math.vec.Vec3d;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.common.block.little.tile.LittleTileContext;
+import team.creative.littletiles.common.block.little.tile.parent.IStructureParentCollection;
+import team.creative.littletiles.common.packet.structure.BedUpdate;
+import team.creative.littletiles.common.structure.LittleStructure;
+import team.creative.littletiles.common.structure.LittleStructureType;
+import team.creative.littletiles.common.structure.directional.StructureDirectional;
+import team.creative.littletiles.common.structure.directional.StructureDirectionalField;
+import team.creative.littletiles.common.structure.exception.CorruptedConnectionException;
+import team.creative.littletiles.common.structure.exception.NotYetConnectedException;
+import team.creative.littletiles.common.structure.signal.SignalState;
+
+public class LittleBed extends LittleStructure {
+    
+    public LittleBed(LittleStructureType type, IStructureParentCollection mainBlock) {
+        super(type, mainBlock);
+    }
+    
+    private Player sleepingPlayer = null;
+    @Environment(EnvType.CLIENT)
+    public Vec3d playerPostion;
+    @StructureDirectional
+    public Facing direction;
+    
+    @Override
+    protected void loadExtra(CompoundTag nbt, HolderLookup.Provider provider) {}
+    
+    @Override
+    protected void saveExtra(CompoundTag nbt, HolderLookup.Provider provider) {}
+    
+    @Override
+    protected Object failedLoadingRelative(CompoundTag nbt, StructureDirectionalField field) {
+        if (field.key.equals("facing"))
+            return Facing.get(nbt.getInt("direction").orElse(0));
+        return super.failedLoadingRelative(nbt, field);
+    }
+    
+    @Override
+    public boolean isBed(LivingEntity player) {
+        return true;
+    }
+    
+    @Override
+    public Direction getBedDirection() {
+        return direction.toVanilla();
+    }
+    
+    public Player getSleepingPlayer() {
+        return sleepingPlayer;
+    }
+    
+    public void wakeUp() {
+        if (!isClient())
+            broadcastPacket(new BedUpdate(getStructureLocation(), getSleepingPlayer(), true));
+        setSleepingPlayer(null);
+    }
+    
+    @Environment(EnvType.CLIENT)
+    public void setSleepingPlayerClient(Player player) {
+        this.sleepingPlayer = player;
+    }
+    
+    private void setSleepingPlayer(Player player) {
+        this.sleepingPlayer = player;
+        if (!isClient())
+            getInput(0).updateState(SignalState.of(player != null));
+    }
+    
+    public Player.BedSleepingProblem trySleep(ServerPlayer player, Vec3d highest, BedRule rule) {
+        BlockPos pos = getStructurePos();
+        var vanillaResult = ((java.util.function.Supplier<Either<BedSleepingProblem, Unit>>) () -> {
+            if (player.isSleeping() || !player.isAlive())
+                return Either.left(Player.BedSleepingProblem.OTHER_PROBLEM);
+            
+            if (rule.canSetSpawn(player.level()))
+                player.setRespawnPosition(new ServerPlayer.RespawnConfig(
+                    RespawnData.of(player.level().dimension(), pos, player.getYRot(), 0), false), true);
+            if (!rule.canSleep(player.level()))
+                return Either.left(rule.asProblem());
+            if (!player.isCreative()) {
+                Vec3 vec3 = highest.toVanilla();
+                List<Monster> list = player.level().getEntitiesOfClass(Monster.class, new AABB(vec3.x() - 8.0, vec3.y() - 5.0, vec3.z() - 8.0, vec3.x() + 8.0, vec3.y() + 5.0, vec3
+                        .z() + 8.0), monster -> monster.isPreventingPlayerRest(player.level(), player));
+                if (!list.isEmpty())
+                    return Either.left(Player.BedSleepingProblem.NOT_SAFE);
+            }
+            return Either.right(Unit.INSTANCE);
+        }).get();
+        
+        vanillaResult = EventHooks.canPlayerStartSleeping(player, pos, vanillaResult);
+        if (vanillaResult.left().isPresent())
+            return vanillaResult.left().get();
+        
+        ((ILittleBedPlayerExtension) player).setSleepingCounter(0);
+        
+        if (player.isPassenger())
+            player.stopRiding();
+        
+        setSleepingPlayer(player);
+        ((ILittleBedPlayerExtension) player).setBed(this);
+        broadcastPacket(new BedUpdate(getStructureLocation(), player, false));
+        
+        player.resetStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+        player.setPose(Pose.SLEEPING);
+        ((ILittleBedPlayerExtension) player).setPositionToBed();
+        player.setSleepingPos(getStructurePos());
+        player.setDeltaMovement(Vec3.ZERO);
+        player.needsSync = true;
+        
+        player.awardStat(Stats.SLEEP_IN_BED);
+        CriteriaTriggers.SLEPT_IN_BED.trigger(player);
+        if (!player.level().canSleepThroughNights())
+            player.sendOverlayMessage(Component.translatable("sleep.not_possible"));
+        player.level().updateSleepingPlayerList();
+        return null;
+    }
+    
+    @Override
+    public void tileDestroyed() throws CorruptedConnectionException, NotYetConnectedException {
+        super.tileDestroyed();
+        if (sleepingPlayer != null)
+            ((ILittleBedPlayerExtension) sleepingPlayer).setBed(null);
+    }
+    
+    @Override
+    public boolean canInteract() {
+        return true;
+    }
+    
+    @Override
+    protected void transferOverFormChange(LittleStructure newStructure) {
+        super.transferOverFormChange(newStructure);
+        LittleBed bed = (LittleBed) newStructure;
+        if (sleepingPlayer != null) {
+            ((ILittleBedPlayerExtension) sleepingPlayer).setBed(bed);
+            bed.sleepingPlayer = sleepingPlayer;
+        }
+    }
+    
+    @Override
+    public InteractionResult use(Level level, LittleTileContext context, BlockPos pos, Player player, BlockHitResult result) {
+        try {
+            checkConnections();
+            
+            if (!LittleTiles.CONFIG.interact.get(player).useBed)
+                return InteractionResult.PASS;
+            
+            if (level.isClientSide())
+                return InteractionResult.CONSUME;
+            
+            if (level instanceof ISubLevel l)
+                level = l.getRealLevel();
+            
+            BedRule rule = level.environmentAttributes().getValue(EnvironmentAttributes.BED_RULE, pos);
+            if (!rule.destroyOnUse()) {
+                Vec3d vec = getHighestCenterVec();
+                if (this.sleepingPlayer != null) {
+                    player.sendSystemMessage(Component.translatable("tile.bed.occupied", new Object[0]));
+                    return InteractionResult.SUCCESS;
+                }
+                
+                BedSleepingProblem problem = trySleep((ServerPlayer) player, vec, rule);
+                
+                if (problem != null && problem.message() != null)
+                    player.sendOverlayMessage(problem.message());
+                return InteractionResult.SUCCESS;
+            }
+        } catch (CorruptedConnectionException | NotYetConnectedException e) {}
+        
+        return InteractionResult.SUCCESS;
+    }
+    
+}

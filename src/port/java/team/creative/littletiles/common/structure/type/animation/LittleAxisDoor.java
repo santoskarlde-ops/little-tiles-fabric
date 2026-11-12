@@ -1,0 +1,154 @@
+package team.creative.littletiles.common.structure.type.animation;
+
+import java.util.function.BiFunction;
+
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import team.creative.creativecore.common.util.math.base.Axis;
+import team.creative.creativecore.common.util.math.matrix.IntMatrix3c;
+import team.creative.creativecore.common.util.math.transformation.Rotation;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
+import team.creative.littletiles.common.block.little.tile.parent.IStructureParentCollection;
+import team.creative.littletiles.common.grid.LittleGrid;
+import team.creative.littletiles.common.math.box.LittleBox;
+import team.creative.littletiles.common.math.vec.LittleVec;
+import team.creative.littletiles.common.math.vec.LittleVecGrid;
+import team.creative.littletiles.common.placement.box.LittlePlaceBoxRelative;
+import team.creative.littletiles.common.placement.box.LittlePlaceBoxRelativeAxis;
+import team.creative.littletiles.common.structure.animation.PhysicalState;
+import team.creative.littletiles.common.structure.attribute.LittleAttributeBuilder;
+import team.creative.littletiles.common.structure.directional.StructureDirectional;
+import team.creative.littletiles.common.structure.directional.StructureDirectionalField;
+import team.creative.littletiles.common.structure.directional.StructureDirectionalType;
+import team.creative.littletiles.common.structure.directional.StructureDirectionalType.StructureDirectionalTypeSimple;
+import team.creative.littletiles.common.structure.relative.StructureRelative;
+
+public class LittleAxisDoor extends LittleDoor {
+    
+    public static void load() {
+        StructureDirectionalType.register(LittleAxisDoorRotation.class, new StructureDirectionalTypeSimple<LittleAxisDoorRotation>() {
+            
+            @Override
+            public LittleAxisDoorRotation read(Tag nbt) {
+                if (nbt instanceof CompoundTag tag) {
+                    Axis axis = Axis.values()[tag.getInt("a").orElse(0)];
+                    if (tag.contains("d"))
+                        return new LittleAxisDoorRotationFixed(axis, tag.getDouble("d").orElse(0.0));
+                    return new LittleAxisDoorRotationDirection(axis, tag.getBoolean("c").orElse(false));
+                }
+                return null;
+            }
+            
+            @Override
+            public Tag write(LittleAxisDoorRotation value) {
+                CompoundTag nbt = new CompoundTag();
+                nbt.putInt("a", value.axis.ordinal());
+                if (value instanceof LittleAxisDoorRotationFixed fixed)
+                    nbt.putDouble("d", fixed.degree);
+                else
+                    nbt.putBoolean("c", ((LittleAxisDoorRotationDirection) value).clockwise);
+                return nbt;
+            }
+            
+            @Override
+            public LittleAxisDoorRotation move(LittleAxisDoorRotation value, LittleVecGrid vec) {
+                return value;
+            }
+            
+            @Override
+            public LittleAxisDoorRotation transform(LittleAxisDoorRotation value, LittleGrid grid, IntMatrix3c matrix, LittleVec doubledCenter) {
+                value.transform(matrix);
+                return value;
+            }
+            
+            @Override
+            public LittleAxisDoorRotation getDefault() {
+                return new LittleAxisDoorRotationDirection(Axis.Y, true);
+            }
+        });
+    }
+    
+    @StructureDirectional
+    public LittleAxisDoorRotation rotation;
+    
+    public LittleAxisDoor(LittleStateStructureType type, IStructureParentCollection mainBlock) {
+        super(type, mainBlock);
+    }
+    
+    public static abstract class LittleAxisDoorRotation {
+        
+        public Axis axis;
+        
+        public LittleAxisDoorRotation(Axis axis) {
+            this.axis = axis;
+        }
+        
+        public abstract void transform(IntMatrix3c matrix);
+        
+        public abstract void apply(PhysicalState state);
+    }
+    
+    public static class LittleAxisDoorRotationDirection extends LittleAxisDoorRotation {
+        
+        public boolean clockwise;
+        
+        public LittleAxisDoorRotationDirection(Axis axis, boolean clockwise) {
+            super(axis);
+            this.clockwise = clockwise;
+        }
+        
+        @Override
+        public void transform(IntMatrix3c matrix) {
+            Rotation rotation = Rotation.getRotation(axis, clockwise).transform(matrix);
+            clockwise = rotation.clockwise;
+            axis = rotation.axis;
+        }
+        
+        @Override
+        public void apply(PhysicalState state) {
+            state.rot(axis, clockwise ? 90 : -90);
+        }
+        
+    }
+    
+    public static class LittleAxisDoorRotationFixed extends LittleAxisDoorRotation {
+        
+        public double degree;
+        
+        public LittleAxisDoorRotationFixed(Axis axis, double degree) {
+            super(axis);
+            this.degree = Math.clamp(degree, -LittleTiles.CONFIG.general.maxDoorRotation, LittleTiles.CONFIG.general.maxDoorRotation);
+        }
+        
+        @Override
+        public void transform(IntMatrix3c matrix) {
+            Rotation rotation = Rotation.getRotation(axis, degree > 0 ? true : false).transform(matrix);
+            axis = rotation.axis;
+            degree = rotation.clockwise ? Math.abs(degree) : -Math.abs(degree);
+        }
+        
+        @Override
+        public void apply(PhysicalState state) {
+            state.rot(axis, degree);
+        }
+    }
+    
+    public static class LittleDoorTypeAxisCenter extends LittleDoorType {
+        
+        public <T extends LittleDoor> LittleDoorTypeAxisCenter(String id, Class<T> structureClass, BiFunction<? extends LittleStateStructureType, IStructureParentCollection, T> factory, LittleAttributeBuilder attribute) {
+            super(id, structureClass, factory, attribute);
+        }
+        
+        @Override
+        protected LittlePlaceBoxRelative getPlaceBox(Object value, StructureDirectionalField type, LittleGroup previews) {
+            if (type.key.equals("center")) {
+                LittleBox box = previews.getSurroundingBox();
+                Axis axis = Axis.values()[previews.getStructureTag().getCompound("rotation").orElse(new CompoundTag()).getInt("a").orElse(0)];
+                return new LittlePlaceBoxRelativeAxis(((StructureRelative) value).getBox(), (StructureRelative) value, type, axis, box.getMin(axis), box.getMax(axis));
+            }
+            return super.getPlaceBox(value, type, previews);
+        }
+    }
+    
+}

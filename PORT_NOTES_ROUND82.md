@@ -1,0 +1,12 @@
+# Round 82 — first round against the real Round 81 source (uncompiled)
+
+Paste this entry at the top of PORT_NOTES.md (separate file so no notes are overwritten).
+
+- Baseline: `lt-src-r81.zip` plus `build_d57623.log` (553 errors). All 516 distinct logged error locations match the supplied source line for line, so these edits are against your real tree.
+- `ItemHandlerBridge` (new, `common/ingredient`): replaces `Player.getCapability(ENTITY)` and `ItemStack.getCapability(ITEM)`, which do not exist on Fabric. `ofPlayer` is a handler over slots 0-35 (hotbar and main inventory, as NeoForge's player handler); inserts only fill an empty slot, which is all `LittleInventory` does. `ofStack` returns null for now, so shulker boxes and bags are not searched for ingredients until the Fabric Transfer API is wired in. Targets 2 errors in `LittleInventory` and 2 in `LittleGuiUtils`.
+- `LittleVanillaInteractionHandlerClient`: removed `handlePickItem(int)` and its import. `ServerboundPickItemPacket` no longer exists (26.3 has `ServerboundPickItemFromBlockPacket` and `...FromEntityPacket`) and nothing called the method.
+- `LittleChunkSerializer`: removed the NeoForge attachment read and write blocks (`readAttachmentsFromNBT`, `writeAttachmentsToNBT`). Attachments written by other mods on little-level chunks are no longer saved or loaded.
+- `LittleTilesClient.LittleKeyMapping`: rebuilt on the 26.3 `KeyMapping` API (ctor `(name, type, key, Category)`, no `getKey`, no modifier/conflict-context). `InputConstants.Type.KEYSYM` is now `KEYBOARD`. Keys use one registered category, id `littletiles:main`; its label key needs a lang entry (`key.category.littletiles.main`, by the 26.x naming pattern; unchecked). Modifiers (Shift+C, Ctrl+Z, Ctrl+Y) and the conflict context are stored but NOT enforced yet, as in the existing `KeyConfig` port. `KeyModifier` stub gained `SHIFT`, `CONTROL`, `ALT`.
+- `LittleAnimationHandlerClient`: `mc.cameraEntity` is now `mc.getCameraEntity()` (in the API dump).
+- Source-reviewed only; the 8 files parsed with the JDK compiler (no syntax errors). Expected: 17 locations removed (4 + 2 + 2 + 8 + 1). No new count is claimed.
+- Left alone on purpose: `LittleTilesProfilerOverlay.register()` (adding a no-op would only hide the missing render hook), item and block colour handlers (`getItemColors` is gone; colours are data-driven now), and everything in the rendering rewrite.

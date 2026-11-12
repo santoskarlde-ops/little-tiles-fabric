@@ -1,0 +1,19 @@
+{
+    "variants": {
+        "facing=north": {
+            "model": "littletiles:block/signal_converter"
+        },
+        "facing=south": {
+            "model": "littletiles:block/signal_converter",
+            "y": 180
+        },
+        "facing=west": {
+            "model": "littletiles:block/signal_converter",
+            "y": 270
+        },
+        "facing=east": {
+            "model": "littletiles:block/signal_converter",
+            "y": 90
+        }
+    }
+}

@@ -1,0 +1,82 @@
+{
+    "parent": "block/block",
+    "textures": {
+        "particle": "minecraft:block/water_flow",
+        "0": "minecraft:block/water_flow",
+        "1": "minecraft:block/water_still"
+    },
+    "render_type": "translucent",
+    "elements": [
+        {
+            "from": [
+                0,
+                0,
+                0
+            ],
+            "to": [
+                16,
+                16,
+                16
+            ],
+            "faces": {
+                "down": {
+                    "texture": "#0",
+                    "cullface": "down",
+                    "uv": [
+                        0.0,
+                        0.0,
+                        8.0,
+                        8.0
+                    ],
+                    "rotation": 180,
+                    "tintindex": 0
+                },
+                "up": {
+                    "texture": "#0",
+                    "cullface": "up",
+                    "uv": [
+                        0.0,
+                        0.0,
+                        8.0,
+                        8.0
+                    ],
+                    "tintindex": 0
+                },
+                "north": {
+                    "texture": "#1",
+                    "cullface": "north",
+                    "tintindex": 0
+                },
+                "south": {
+                    "texture": "#1",
+                    "cullface": "south",
+                    "tintindex": 0
+                },
+                "west": {
+                    "texture": "#0",
+                    "cullface": "west",
+                    "uv": [
+                        0.0,
+                        0.0,
+                        8.0,
+                        8.0
+                    ],
+                    "rotation": 270,
+                    "tintindex": 0
+                },
+                "east": {
+                    "texture": "#0",
+                    "cullface": "east",
+                    "uv": [
+                        0.0,
+                        0.0,
+                        8.0,
+                        8.0
+                    ],
+                    "rotation": 90,
+                    "tintindex": 0
+                }
+            }
+        }
+    ]
+}

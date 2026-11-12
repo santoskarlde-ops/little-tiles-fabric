@@ -1,0 +1,413 @@
+package team.creative.littletiles.common.structure.type.premade;
+
+import team.creative.littletiles.common.compat.creativecore.VecOriginPose;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.neoforged.api.distmarker.Dist;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import team.creative.creativecore.client.render.box.RenderBox;
+import team.creative.creativecore.common.level.ISubLevel;
+import team.creative.creativecore.common.util.math.base.Facing;
+import team.creative.creativecore.common.util.math.transformation.Rotation;
+import team.creative.creativecore.common.util.math.vec.Vec3d;
+import team.creative.creativecore.common.util.mc.ColorUtils;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.LittleTilesGuiRegistry;
+import team.creative.littletiles.LittleTilesRegistry;
+import team.creative.littletiles.common.block.little.tile.LittleTileContext;
+import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
+import team.creative.littletiles.common.block.little.tile.parent.IStructureParentCollection;
+import team.creative.littletiles.common.entity.particle.LittleParticle;
+import team.creative.littletiles.common.entity.particle.LittleParticlePresets;
+import team.creative.littletiles.common.entity.particle.LittleParticleTexture;
+import team.creative.littletiles.common.item.ItemLittleWrench;
+import team.creative.littletiles.common.math.box.LittleBox;
+import team.creative.littletiles.common.placement.box.LittlePlaceBox;
+import team.creative.littletiles.common.placement.box.LittlePlaceBoxFacing;
+import team.creative.littletiles.common.structure.attribute.LittleAttributeBuilder;
+import team.creative.littletiles.common.structure.directional.StructureDirectional;
+
+public class LittleParticleEmitter extends LittleStructurePremade {
+    
+    @StructureDirectional
+    public Facing facing = Facing.UP;
+    public ParticleSettings settings = new ParticleSettings();
+    public ParticleSpread spread = new ParticleSpreadRandom();
+    public int delay = 10;
+    public int count = 1;
+    protected int ticker = 0;
+    public boolean locked;
+    
+    public LittleParticleEmitter(LittleStructureTypeParticleEmitter type, IStructureParentCollection mainBlock) {
+        super(type, mainBlock);
+    }
+    
+    @Override
+    public void tick() {
+        if (getOutput(0).getState().any())
+            return;
+        if (ticker >= delay) {
+            if (isClient())
+                for (int i = 0; i < count; i++)
+                    spawnParticle(getStructureLevel());
+                
+            ticker = 0;
+        } else
+            ticker++;
+    }
+    
+    @Override
+    public boolean canInteract() {
+        return true;
+    }
+    
+    @Override
+    public boolean wrenchInteract(Player player) {
+        if (!player.level().isClientSide())
+            LittleTilesGuiRegistry.PARTICLE.open(player, this);
+        return true;
+    }
+    
+    @Override
+    public InteractionResult use(Level level, LittleTileContext context, BlockPos pos, Player player, BlockHitResult result) {
+        if (!level.isClientSide() && !locked)
+            LittleTilesGuiRegistry.PARTICLE.open(player, this);
+        return InteractionResult.SUCCESS;
+    }
+    
+    @Environment(EnvType.CLIENT)
+    public void spawnParticle(Level level) {
+        Minecraft mc = Minecraft.getInstance();
+        
+        if (mc.player.getMainHandItem().getItem() instanceof ItemLittleWrench || mc.player.getOffhandItem().getItem() instanceof ItemLittleWrench)
+            return;
+        
+        try {
+            AABB bb = getSurroundingBox().getAABB();
+            Vec3d pos = new Vec3d(0, 0.5, 0);
+            Vec3d speed = spread.generate();
+            float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+            
+            Rotation rotation = null;
+            switch (facing) {
+                case DOWN:
+                    pos.scale(-1);
+                    speed.scale(-1);
+                    break;
+                case EAST:
+                    rotation = Rotation.Z_COUNTER_CLOCKWISE;
+                    break;
+                case WEST:
+                    rotation = Rotation.Z_CLOCKWISE;
+                    break;
+                case SOUTH:
+                    rotation = Rotation.X_CLOCKWISE;
+                    break;
+                case NORTH:
+                    rotation = Rotation.X_COUNTER_CLOCKWISE;
+                    break;
+                case UP:
+                    break;
+                default:
+                    break;
+            }
+            
+            if (rotation != null) {
+                rotation.transform(pos);
+                rotation.transform(speed);
+            }
+            
+            pos.x *= bb.maxX - bb.minX;
+            pos.y *= bb.maxY - bb.minY;
+            pos.z *= bb.maxZ - bb.minZ;
+            pos.x += (bb.minX + bb.maxX) / 2;
+            pos.y += (bb.minY + bb.maxY) / 2;
+            pos.z += (bb.minZ + bb.maxZ) / 2;
+            
+            if (level instanceof ISubLevel s) {
+                var pose = VecOriginPose.of(s.getOrigin(), partialTick);
+                pose.transform(pos);
+                pose.rotateWithoutCenter(speed);
+                level = s.getRealLevel();
+            }
+            
+            mc.particleEngine.add(new LittleParticle((ClientLevel) level, pos, speed, settings));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    public void loadSettings(CompoundTag nbt) {
+        spread = loadSpread(nbt);
+        if (nbt.contains("tickDelay"))
+            delay = nbt.getInt("tickDelay").orElse(0);
+        else
+            delay = 10;
+        ticker = nbt.getInt("ticker").orElse(0);
+        if (nbt.contains("tickCount"))
+            count = nbt.getInt("tickCount").orElse(0);
+        else
+            count = 1;
+        
+        double perSecond = (count * 20) / (delay + 1);
+        if (perSecond > LittleTiles.CONFIG.general.maxParticlesPerSecond)
+            count = (int) (LittleTiles.CONFIG.general.maxParticlesPerSecond * (delay + 1) / 20); // Set count to the highest number possible
+            
+        if (nbt.contains("settings"))
+            settings = new ParticleSettings(nbt.getCompound("settings").orElse(new CompoundTag()));
+        else
+            settings = LittleParticlePresets.SMOKE.settings.copy();
+        locked = nbt.getBoolean("locked").orElse(false);
+    }
+    
+    @Override
+    protected void loadExtra(CompoundTag nbt, HolderLookup.Provider provider) {
+        loadSettings(nbt);
+    }
+    
+    @Override
+    protected void saveExtra(CompoundTag nbt, HolderLookup.Provider provider) {
+        nbt.putInt("tickDelay", delay);
+        nbt.putInt("tickCount", count);
+        nbt.putInt("ticker", ticker);
+        spread.write(nbt);
+        CompoundTag settingsData = new CompoundTag();
+        settings.write(settingsData);
+        nbt.put("settings", settingsData);
+        nbt.putBoolean("locked", locked);
+    }
+    
+    public static class ParticleSettings {
+        
+        public float gravity = 0;
+        public int color = ColorUtils.rgba(20, 20, 20, 255);
+        public int lifetime = 40;
+        public int lifetimeDeviation = 5;
+        public float startSize = 0.1F;
+        public float endSize = 0.1F;
+        public float sizeDeviation = 0.02F;
+        public LittleParticleTexture texture = LittleParticleTexture.dust_fade_out;
+        public boolean randomColor = false;
+        public boolean collision = true;
+        
+        public ParticleSettings() {}
+        
+        public ParticleSettings(float gravity, int color, int lifetime, int lifetimeDeviation, float startSize, float endSize, float sizeDeviation, LittleParticleTexture texture, boolean randomColor, boolean collision) {
+            this.gravity = gravity;
+            this.color = color;
+            this.lifetime = lifetime;
+            this.lifetimeDeviation = lifetimeDeviation;
+            this.startSize = startSize;
+            this.endSize = endSize;
+            this.sizeDeviation = sizeDeviation;
+            this.texture = texture;
+            this.randomColor = randomColor;
+            this.collision = collision;
+        }
+        
+        public ParticleSettings(CompoundTag nbt) {
+            gravity = nbt.getFloat("gravity").orElse(0f);
+            color = nbt.getInt("color").orElse(0);
+            lifetime = nbt.getInt("lifetime").orElse(0);
+            lifetimeDeviation = nbt.getInt("lifetimeDeviation").orElse(0);
+            startSize = nbt.getFloat("startSize").orElse(0f);
+            endSize = nbt.getFloat("endSize").orElse(0f);
+            sizeDeviation = nbt.getFloat("sizeDeviation").orElse(0f);
+            randomColor = nbt.getBoolean("randomColor").orElse(false);
+            collision = nbt.getBoolean("collision").orElse(false);
+            texture = LittleParticleTexture.get(nbt.getString("texture").orElse(""));
+        }
+        
+        public void write(CompoundTag nbt) {
+            nbt.putFloat("gravity", gravity);
+            nbt.putInt("color", color);
+            nbt.putInt("lifetime", lifetime);
+            nbt.putInt("lifetimeDeviation", lifetimeDeviation);
+            nbt.putFloat("startSize", startSize);
+            nbt.putFloat("endSize", endSize);
+            nbt.putFloat("sizeDeviation", sizeDeviation);
+            nbt.putString("texture", texture.name());
+            nbt.putBoolean("randomColor", randomColor);
+            nbt.putBoolean("collision", collision);
+        }
+        
+        public ParticleSettings copy() {
+            return new ParticleSettings(gravity, color, lifetime, lifetimeDeviation, startSize, endSize, sizeDeviation, texture, randomColor, collision);
+        }
+    }
+    
+    public static ParticleSpread loadSpread(CompoundTag nbt) {
+        ParticleSpread spread = null;
+        for (int i = parser.size() - 1; i >= 0; --i) {
+            spread = parser.get(i).apply(nbt);
+            if (spread != null)
+                break;
+        }
+        if (spread == null)
+            spread = new ParticleSpreadRandom();
+        spread.speedY = nbt.getFloat("speedY").orElse(0f);
+        spread.spread = nbt.getFloat("spread").orElse(0f);
+        return spread;
+    }
+    
+    private static List<Function<CompoundTag, ParticleSpread>> parser = new ArrayList<>();
+    
+    public static void registerParticleSpreadParser(Function<CompoundTag, ParticleSpread> function) {
+        parser.add(function);
+    }
+    
+    static {
+        registerParticleSpreadParser((x) -> {
+            ParticleSpreadRandom spread = new ParticleSpreadRandom();
+            
+            spread.speedX = x.getFloat("speedX").orElse(0f);
+            spread.speedZ = x.getFloat("speedZ").orElse(0f);
+            return spread;
+        });
+        registerParticleSpreadParser((x) -> {
+            if (!x.contains("radius"))
+                return null;
+            
+            ParticleSpreadCircular spread = new ParticleSpreadCircular();
+            spread.radius = x.getFloat("radius").orElse(0f);
+            spread.angle = x.getFloat("angle").orElse(0f);
+            spread.steps = x.getInt("steps").orElse(0);
+            return spread;
+        });
+    }
+    
+    public static abstract class ParticleSpread {
+        
+        public float speedY = 0.1F;
+        public float spread = 0.1F;
+        
+        protected abstract void populate(Vec3d vec);
+        
+        public Vec3d generate() {
+            Vec3d vec = new Vec3d();
+            vec.y = speedY;
+            populate(vec);
+            float half = spread / 2;
+            vec.x += Math.random() * spread - half;
+            vec.z += Math.random() * spread - half;
+            return vec;
+        }
+        
+        public void write(CompoundTag nbt) {
+            nbt.putFloat("speedY", speedY);
+            nbt.putFloat("spread", spread);
+        }
+        
+    }
+    
+    public static class ParticleSpreadRandom extends ParticleSpread {
+        
+        public float speedX = 0F;
+        public float speedZ = 0F;
+        
+        public ParticleSpreadRandom() {}
+        
+        public ParticleSpreadRandom(float power, float x, float z, float deviation) {
+            this.speedY = power;
+            this.speedX = x;
+            this.speedZ = z;
+            this.spread = deviation;
+        }
+        
+        @Override
+        protected void populate(Vec3d vec) {
+            vec.x = speedX;
+            vec.z = speedZ;
+        }
+        
+        @Override
+        public void write(CompoundTag nbt) {
+            super.write(nbt);
+            nbt.putFloat("speedX", speedX);
+            nbt.putFloat("speedZ", speedZ);
+        }
+        
+    }
+    
+    public static class ParticleSpreadCircular extends ParticleSpread {
+        
+        public float radius = 0.1F;
+        public float angle = 0;
+        public int steps = 30;
+        
+        public ParticleSpreadCircular() {}
+        
+        public ParticleSpreadCircular(float power, float radius, float angle, int steps, float deviation) {
+            this.speedY = power;
+            this.radius = radius;
+            this.angle = angle;
+            this.steps = steps;
+            this.spread = deviation;
+        }
+        
+        @Override
+        protected void populate(Vec3d vec) {
+            vec.x = Math.cos(angle) * radius;
+            vec.z = Math.sin(angle) * radius;
+            angle += (Math.PI * 2) / steps;
+        }
+        
+        @Override
+        public void write(CompoundTag nbt) {
+            super.write(nbt);
+            nbt.putFloat("radius", radius);
+            nbt.putFloat("degree", angle);
+            nbt.putInt("steps", steps);
+        }
+    }
+    
+    public static class LittleStructureTypeParticleEmitter extends LittlePremadeType {
+        
+        @Environment(EnvType.CLIENT)
+        public List<RenderBox> cubes;
+        
+        public <T extends LittleParticleEmitter> LittleStructureTypeParticleEmitter(String id, Class<T> structureClass, BiFunction<LittleStructureTypeParticleEmitter, IStructureParentCollection, T> factory, LittleAttributeBuilder attribute, String modid) {
+            super(id, structureClass, factory, attribute, modid);
+        }
+        
+        @Override
+        public List<LittlePlaceBox> getSpecialBoxes(LittleGroup group) {
+            List<LittlePlaceBox> result = super.getSpecialBoxes(group);
+            Facing facing = (Facing) loadDirectional(group, "facing");
+            LittleBox box = group.getSurroundingBox();
+            result.add(new LittlePlaceBoxFacing(box, facing, ColorUtils.RED));
+            return result;
+        }
+        
+        @Override
+        @Environment(EnvType.CLIENT)
+        public List<RenderBox> getItemPreview(LittleGroup previews, boolean translucent) {
+            if (cubes == null) {
+                cubes = new ArrayList<>();
+                cubes.add(new RenderBox(0.2F, 0.2F, 0.2F, 0.8F, 0.8F, 0.8F, LittleTilesRegistry.CLEAN.value().defaultBlockState()).setColor(-13619152));
+            }
+            return cubes;
+        }
+        
+        @Override
+        public boolean canSnapToGrid() {
+            return false;
+        }
+        
+    }
+}

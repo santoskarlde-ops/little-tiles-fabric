@@ -1,0 +1,687 @@
+package team.creative.littletiles.common.placement;
+
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.function.BiPredicate;
+
+import javax.annotation.Nullable;
+
+import org.apache.commons.lang3.mutable.MutableInt;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.common.util.BlockSnapshot;
+import net.neoforged.neoforge.event.level.BlockEvent;
+import team.creative.creativecore.common.util.math.base.Facing;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.common.action.LittleAction;
+import team.creative.littletiles.common.action.exception.AreaProtected;
+import team.creative.littletiles.common.action.exception.LittleActionException;
+import team.creative.littletiles.common.action.exception.NotAllowedToPlaceException;
+import team.creative.littletiles.common.action.exception.TooDenseException;
+import team.creative.littletiles.common.action.source.LittleActionSource;
+import team.creative.littletiles.common.block.entity.BETiles;
+import team.creative.littletiles.common.block.little.element.LittleElement;
+import team.creative.littletiles.common.block.little.tile.LittleTile;
+import team.creative.littletiles.common.block.little.tile.collection.LittleBlockCollection;
+import team.creative.littletiles.common.block.little.tile.collection.LittleCollection;
+import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
+import team.creative.littletiles.common.block.little.tile.group.LittleGroupAbsolute;
+import team.creative.littletiles.common.block.little.tile.group.LittleGroupHolder;
+import team.creative.littletiles.common.block.little.tile.parent.IParentCollection;
+import team.creative.littletiles.common.block.little.tile.parent.ParentCollection;
+import team.creative.littletiles.common.block.little.tile.parent.StructureParentCollection;
+import team.creative.littletiles.common.block.mc.BlockTile;
+import team.creative.littletiles.common.config.LittlePermissionBuild;
+import team.creative.littletiles.common.grid.IGridBased;
+import team.creative.littletiles.common.grid.LittleGrid;
+import team.creative.littletiles.common.ingredient.LittleIngredient;
+import team.creative.littletiles.common.ingredient.LittleIngredients;
+import team.creative.littletiles.common.level.LittleUpdateCollector;
+import team.creative.littletiles.common.math.box.LittleBox;
+import team.creative.littletiles.common.math.box.volume.LittleBoxReturnedVolume;
+import team.creative.littletiles.common.math.box.volume.LittleVolumes;
+import team.creative.littletiles.common.math.location.StructureLocation;
+import team.creative.littletiles.common.math.vec.LittleVec;
+import team.creative.littletiles.common.placement.box.LittlePlaceBox;
+import team.creative.littletiles.common.structure.LittleStructure;
+
+public class Placement {
+    
+    public final LittleActionSource source;
+    public final Level level;
+    public final PlacementPreview preview;
+    public final LinkedHashMap<BlockPos, PlacementBlock> blocks = new LinkedHashMap<>();
+    public final PlacementStructurePreview origin;
+    public final List<PlacementStructurePreview> structures = new ArrayList<>();
+    
+    public final BitSet availableIds = new BitSet();
+    
+    public final LittleIngredients removedIngredients;
+    public final LittleGroupAbsolute removedTiles;
+    public final LittleGroup unplaceableTiles;
+    public final List<SoundType> soundsToBePlayed = new ArrayList<>();
+    
+    protected final BlockPos blockOffset;
+    protected final LittleVec insideBlockOffset;
+    
+    protected MutableInt affectedBlocks = new MutableInt();
+    protected ItemStack stack;
+    protected boolean ignoreWorldBoundaries = true;
+    protected BiPredicate<IParentCollection, LittleTile> predicate;
+    protected boolean playSounds = true;
+    
+    public Placement(@Nullable LittleActionSource source, Level level, PlacementPreview preview) throws LittleActionException {
+        this.source = source;
+        this.level = level;
+        this.preview = preview;
+        if (preview instanceof PlacementPreviewAdd a)
+            this.origin = createPlaceAddStructure(a);
+        else
+            this.origin = createStructureTree(null, preview.previews, null);
+        
+        this.blockOffset = preview.position.getPos();
+        this.insideBlockOffset = preview.position.getMin().getVec();
+        
+        this.removedIngredients = new LittleIngredients();
+        this.removedTiles = new LittleGroupAbsolute(blockOffset);
+        this.unplaceableTiles = new LittleGroup();
+        
+        preview.position.forceSameGrid(preview.previews);
+        
+        createPreviews(origin, insideBlockOffset);
+        
+        for (PlacementBlock block : blocks.values())
+            block.convertToSmallest();
+    }
+    
+    public Placement(LittleActionSource source, PlacementPreview preview) throws LittleActionException {
+        this(source, preview.getLevel(source.getActionLevel()), preview);
+    }
+    
+    public Placement setPlaySounds(boolean sounds) {
+        this.playSounds = sounds;
+        return this;
+    }
+    
+    public Placement setIgnoreWorldBoundaries(boolean value) {
+        this.ignoreWorldBoundaries = value;
+        return this;
+    }
+    
+    public Placement setPredicate(BiPredicate<IParentCollection, LittleTile> predicate) {
+        this.predicate = predicate;
+        return this;
+    }
+    
+    public Placement setStack(ItemStack stack) {
+        this.stack = stack;
+        return this;
+    }
+    
+    public void addRemovedIngredient(PlacementBlock block, LittleElement element, LittleBoxReturnedVolume volume) {
+        removedIngredients.add(LittleIngredient.extract(element, volume.getPercentVolume(block.getGrid())));
+    }
+    
+    public void addRemovedIngredient(LittleVolumes volumes) {
+        if (!volumes.isEmpty())
+            for (Entry<LittleElement, Integer> entry : volumes.entrySet())
+                removedIngredients.add(LittleIngredient.extract(entry.getKey(), entry.getValue() * volumes.getGrid().pixelVolume));
+    }
+    
+    public LittleIngredients overflow() {
+        LittleIngredients ingredients = LittleAction.getIngredients(level.registryAccess(), removedTiles);
+        ingredients.add(this.removedIngredients);
+        return ingredients;
+    }
+    
+    public boolean canPlace() throws LittleActionException {
+        affectedBlocks.setValue(0);
+        
+        for (BlockPos pos : blocks.keySet()) {
+            if (!LittleAction.isAllowedToInteract(level, source, pos, true, Facing.EAST)) {
+                LittleAction.sendBlockResetToClient(level, source, pos);
+                return false;
+            }
+        }
+        
+        List<BlockPos> coordsToCheck = preview.mode.getCoordsToCheck(blocks.keySet(), blockOffset);
+        if (coordsToCheck != null) {
+            for (BlockPos pos : coordsToCheck) {
+                PlacementBlock block = blocks.get(pos);
+                
+                if (block == null)
+                    continue;
+                
+                if (!block.canPlace())
+                    return false;
+            }
+        }
+        return true;
+    }
+    
+    public PlacementResult place() throws LittleActionException {
+        if (blocks.isEmpty())
+            return null;
+        
+        if (source != null && !level.isClientSide()) {
+            affectedBlocks.setValue(0);
+            
+            if (source.isPlayer()) {
+                var player = source.asPlayer();
+                LittlePermissionBuild config = LittleTiles.CONFIG.build.get(player);
+                
+                if (LittleTiles.CONFIG.isPlaceLimited(player) && preview.previews.getVolumeIncludingChildren() > config.placeBlockLimit.value) {
+                    for (BlockPos pos : blocks.keySet())
+                        LittleAction.sendBlockResetToClient(level, source, pos);
+                    throw new NotAllowedToPlaceException(config);
+                }
+                
+                if (LittleTiles.CONFIG.isTransparencyRestricted(player))
+                    for (LittleTile tile : preview.previews.allTiles()) {
+                        try {
+                            LittleAction.isAllowedToPlacePreview(player, tile);
+                        } catch (LittleActionException e) {
+                            for (BlockPos pos : blocks.keySet())
+                                LittleAction.sendBlockResetToClient(level, source, pos);
+                            throw e;
+                        }
+                    }
+                
+                boolean cancelled = false;
+                BlockState against = level.getBlockState(preview.position.facing == null ? blockOffset : blockOffset.relative(preview.position.facing.toVanilla()));
+                for (BlockPos snapPos : blocks.keySet())
+                    if (NeoForge.EVENT_BUS.post(new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, snapPos), against, player)).isCanceled()) {
+                        cancelled = true;
+                        break;
+                    }
+                
+                if (cancelled) {
+                    for (BlockPos snapPos : blocks.keySet())
+                        LittleAction.sendBlockResetToClient(level, source, snapPos);
+                    throw new AreaProtected();
+                }
+            }
+        }
+        try {
+            if (canPlace())
+                return placeTiles();
+        } catch (LittleActionException e) {
+            for (BlockPos snapPos : blocks.keySet())
+                LittleAction.sendBlockResetToClient(level, source, snapPos);
+            throw e;
+        }
+        return null;
+    }
+    
+    public PlacementResult tryPlace() {
+        try {
+            return place();
+        } catch (LittleActionException e) {
+            return null;
+        }
+    }
+    
+    protected PlacementResult placeTiles() throws LittleActionException {
+        PlacementResult result = new PlacementResult(blockOffset);
+        
+        for (PlacementBlock block : blocks.values())
+            block.place(result);
+        
+        result.parentStructure = origin.isStructure() ? origin.getStructure() : null;
+        
+        LittleUpdateCollector neighbor = new LittleUpdateCollector(level, blocks.keySet());
+        
+        for (Iterator iterator = blocks.values().iterator(); iterator.hasNext();) {
+            PlacementBlock block = (PlacementBlock) iterator.next();
+            if (block.combineTilesSecretly()) {
+                result.blocks.remove(block.cached);
+                iterator.remove();
+            }
+        }
+        
+        origin.place();
+        
+        if (origin.isStructure()) {
+            if (origin.getStructure() == null)
+                throw new LittleActionException("Missing missing mainblock of structure. Placed " + result.placedPreviews.size() + " tile(s).");
+            notifyStructurePlaced();
+        }
+        
+        constructStructureRelations();
+        
+        for (PlacementStructurePreview preview : structures)
+            if (preview.isStructure())
+                preview.getStructure().afterPlaced();
+        neighbor.process();
+        
+        if (playSounds)
+            for (int i = 0; i < soundsToBePlayed.size(); i++)
+                level.playSound(null, blockOffset, soundsToBePlayed.get(i).getPlaceSound(), SoundSource.BLOCKS, (soundsToBePlayed.get(i).getVolume() + 1.0F) / 2.0F,
+                    soundsToBePlayed.get(i).getPitch() * 0.8F);
+            
+        removedTiles.convertToSmallest();
+        unplaceableTiles.convertToSmallest();
+        
+        for (PlacementStructurePreview preview : structures)
+            if (preview.isStructure())
+                preview.getStructure().finishedPlacement(this);
+            
+        return result;
+    }
+    
+    public void notifyStructurePlaced() {
+        origin.getStructure().placedStructure(stack);
+    }
+    
+    public void constructStructureRelations() {
+        updateRelations(origin);
+    }
+    
+    private void updateRelations(PlacementStructurePreview preview) {
+        int index = 0;
+        for (int i = 0; i < preview.children.size(); i++) {
+            PlacementStructurePreview child = preview.children.get(i);
+            if (preview.isStructure() && child.isStructure()) {
+                preview.getStructure().children.connectToChild(index, child.getStructure());
+                child.getStructure().children.connectToParentAsChild(index, preview.getStructure());
+                index++;
+            }
+            
+            updateRelations(child);
+        }
+        
+        for (Entry<String, PlacementStructurePreview> pair : preview.extensions.entrySet()) {
+            if (preview.isStructure() && pair.getValue().isStructure()) {
+                preview.getStructure().children.connectToExtension(pair.getValue().extension, pair.getValue().getStructure());
+                pair.getValue().getStructure().children.connectToParentAsExtension(preview.getStructure());
+            }
+            
+            updateRelations(pair.getValue());
+        }
+    }
+    
+    public PlacementBlock getOrCreateBlock(BlockPos pos) {
+        PlacementBlock block = blocks.get(pos);
+        if (block == null) {
+            block = new PlacementBlock(pos, preview.previews.getGrid());
+            blocks.put(pos, block);
+        }
+        return block;
+    }
+    
+    private PlacementStructurePreview createPlaceAddStructure(PlacementPreviewAdd preview) throws LittleActionException {
+        return new PlacementStructurePreview(preview.previews, preview.parent);
+    }
+    
+    private PlacementStructurePreview createStructureTree(PlacementStructurePreview parent, LittleGroup previews, String extension) {
+        PlacementStructurePreview structure = new PlacementStructurePreview(parent, previews, extension);
+        
+        for (LittleGroup child : previews.children.children())
+            structure.addChild(createStructureTree(structure, child, null));
+        
+        for (Entry<String, LittleGroup> pair : previews.children.extensionEntries())
+            structure.addExtension(pair.getKey(), createStructureTree(structure, pair.getValue(), pair.getKey()));
+        
+        return structure;
+    }
+    
+    private void createPreviews(PlacementStructurePreview current, LittleVec inBlockOffset) {
+        if (current.previews != null) {
+            LittleBlockCollection collection = new LittleBlockCollection(blockOffset, preview.previews.getGrid());
+            
+            collection.add(current.previews, inBlockOffset);
+            
+            for (Entry<BlockPos, LittleCollection> entry : collection.entrySet())
+                getOrCreateBlock(entry.getKey()).addPlacePreviews(current, current.index, entry.getValue());
+        }
+        
+        for (PlacementStructurePreview child : current.children)
+            createPreviews(child, inBlockOffset);
+    }
+    
+    public class PlacementBlock implements IGridBased {
+        
+        public final BlockPos pos;
+        private BETiles cached;
+        private LittleGrid grid;
+        private final LittleCollection[] tiles;
+        private int attribute = 0;
+        private boolean requiresCollisionTest;
+        
+        public PlacementBlock(BlockPos pos, LittleGrid grid) {
+            this.pos = pos;
+            this.grid = grid;
+            tiles = new LittleCollection[structures.size()];
+            
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof BETiles b) {
+                cached = b;
+                cached.fillUsedIds(availableIds);
+            }
+        }
+        
+        @Override
+        public LittleGrid getGrid() {
+            return grid;
+        }
+        
+        public void addPlacePreviews(PlacementStructurePreview structure, int index, LittleCollection previews) {
+            LittleCollection list = this.tiles[index];
+            if (list == null)
+                this.tiles[index] = previews;
+            else
+                list.addAll(previews);
+            if (structure.isStructure())
+                attribute |= structure.getAttribute();
+        }
+        
+        @Override
+        public void convertTo(LittleGrid to) {
+            for (int i = 0; i < tiles.length; i++)
+                if (tiles[i] != null)
+                    for (LittleTile preview : tiles[i])
+                        preview.convertTo(this.grid, to);
+                    
+            this.grid = to;
+        }
+        
+        @Override
+        public int getSmallest() {
+            int size = LittleGrid.MIN.count;
+            
+            for (int i = 0; i < tiles.length; i++)
+                if (tiles[i] != null)
+                    for (LittleTile preview : tiles[i])
+                        size = Math.max(size, preview.getSmallest(grid));
+                    
+            return size;
+        }
+        
+        private boolean needsCollisionTest() {
+            for (int i = 0; i < tiles.length; i++)
+                if (tiles[i] != null && !tiles[i].isEmpty())
+                    return true;
+            return false;
+        }
+        
+        public boolean canPlace() throws LittleActionException {
+            if (!needsCollisionTest())
+                return true;
+            
+            if (!ignoreWorldBoundaries && (pos.getY() < 0 || pos.getY() >= 256))
+                return false;
+            
+            BETiles te = LittleAction.loadBE(source, level, pos, null, false, attribute);
+            if (te != null) {
+                
+                int size = te.tilesCount();
+                for (int i = 0; i < tiles.length; i++)
+                    if (tiles[i] != null)
+                        size += tiles[i].size();
+                    
+                if (size > LittleTiles.CONFIG.general.maxAllowedDensity)
+                    throw new TooDenseException();
+                
+                if (!te.sameGrid(this, () -> {
+                    for (int i = 0; i < tiles.length; i++)
+                        if (tiles[i] != null)
+                            for (LittleTile tile : tiles[i])
+                                for (LittleBox box : tile) {
+                                    if (preview.mode.checkAll()) {
+                                        if (!te.isSpaceFor(box, predicate))
+                                            return false;
+                                    } else if (!te.isSpaceFor(box, (x, y) -> x.isStructure() && (predicate == null || predicate.test(x, y))))
+                                        return false;
+                                    
+                                }
+                    return true;
+                }))
+                    return false;
+                
+                cached = te;
+                return true;
+            }
+            
+            int size = 0;
+            for (int i = 0; i < tiles.length; i++)
+                if (tiles[i] != null)
+                    size += tiles[i].size();
+                
+            if (size > LittleTiles.CONFIG.general.maxAllowedDensity)
+                throw new TooDenseException();
+            
+            BlockState state = level.getBlockState(pos);
+            if (state.is(BlockTags.REPLACEABLE))
+                return true;
+            else if (preview.mode.checkAll() || !(LittleAction.isBlockValid(state) && LittleAction.canConvertBlock(source, level, pos, state, affectedBlocks.incrementAndGet())))
+                return false;
+            return true;
+        }
+        
+        public boolean combineTilesSecretly() {
+            if (cached == null)
+                return false;
+            boolean hasPlacedNoneTiles = false; // Only none tiles should be optimised to save performance. The tiles from the structure are hopefully fully optimised already. If not the wrench can be used anyway
+            if (hasStructure()) {
+                for (int i = 0; i < tiles.length; i++)
+                    if (tiles[i] != null)
+                        if (structures.get(i).isStructure())
+                            cached.combineStructureTilesSecretly(structures.get(i).getIndex());
+                        else
+                            hasPlacedNoneTiles = true;
+                if (hasPlacedNoneTiles)
+                    cached.combineNoneTilesSecretly(requiresCollisionTest);
+                return false;
+            }
+            cached.combineNoneTilesSecretly(requiresCollisionTest);
+            if (cached.tilesCount() == 1 && cached.convertBlockToVanilla())
+                return true;
+            return false;
+        }
+        
+        public boolean hasStructure() {
+            for (int i = 0; i < tiles.length; i++)
+                if (tiles[i] != null && structures.get(i).isStructure())
+                    return true;
+            return false;
+        }
+        
+        public void place(PlacementResult result) throws LittleActionException {
+            boolean hascollideBlock = false;
+            for (int i = 0; i < tiles.length; i++)
+                if (tiles[i] != null) {
+                    hascollideBlock = true;
+                    break;
+                }
+            
+            if (hascollideBlock) {
+                requiresCollisionTest = true;
+                if (cached == null) {
+                    if (!(level.getBlockState(pos).getBlock() instanceof BlockTile) && level.getBlockState(pos).is(BlockTags.REPLACEABLE)) {
+                        requiresCollisionTest = false;
+                        LittleAction.setBlockPreventPredict(level, pos, BlockTile.getStateByAttribute(level, pos, attribute), 0);
+                    }
+                    
+                    cached = LittleAction.loadBE(source, level, pos, affectedBlocks, Placement.this.preview.mode.shouldConvertBlock(), attribute);
+                } else
+                    cached = cached.forceSupportAttribute(attribute);
+                
+                if (cached != null) {
+                    int size = cached.tilesCount();
+                    for (int i = 0; i < tiles.length; i++)
+                        if (tiles[i] != null)
+                            size += tiles[i].size();
+                        
+                    if (size > LittleTiles.CONFIG.general.maxAllowedDensity)
+                        throw new TooDenseException();
+                    
+                    if (cached.isEmpty())
+                        requiresCollisionTest = false;
+                    
+                    PlacementContext context = new PlacementContext(Placement.this, this, result, requiresCollisionTest);
+                    
+                    try {
+                        cached.sameGrid(this, () -> {
+                            cached.updateTilesSecretly((x) -> {
+                                
+                                for (int i = 0; i < tiles.length; i++) {
+                                    if (tiles[i] == null || tiles[i].isEmpty())
+                                        continue;
+                                    ParentCollection parent = x.noneStructureTiles();
+                                    PlacementStructurePreview structure = structures.get(i);
+                                    if (structure.isStructure()) {
+                                        parent = x.getStructure(structure.getIndex());
+                                        
+                                        if (parent == null) {
+                                            StructureParentCollection list = x.addStructure(structure.getIndex(), structure.getAttribute());
+                                            structure.place(list, level.registryAccess());
+                                            parent = list;
+                                        }
+                                    }
+                                    context.setParent(parent);
+                                    
+                                    preview.mode.prepareBlock(context);
+                                    
+                                    for (LittleTile tile : tiles[i]) {
+                                        try {
+                                            if (preview.mode.placeTile(context, structure.getStructure(), tile) && playSounds && !soundsToBePlayed.contains(tile.getSound()))
+                                                soundsToBePlayed.add(tile.getSound());
+                                        } catch (LittleActionException e) {
+                                            LittleTiles.LOGGER.catching(e);
+                                            throw new RuntimeException(e);
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    } catch (RuntimeException e) {
+                        if (e.getCause() instanceof LittleActionException) {
+                            LittleTiles.LOGGER.catching(e);
+                            throw (LittleActionException) e.getCause();
+                        } else
+                            throw e;
+                    }
+                }
+            }
+        }
+        
+        public BETiles getBE() {
+            return cached;
+        }
+    }
+    
+    public class PlacementStructurePreview {
+        
+        private LittleStructure cachedStructure;
+        public final LittleGroup previews;
+        public final PlacementStructurePreview parent;
+        public final int index;
+        public final String extension;
+        private int structureIndex = -1;
+        private boolean add = false;
+        
+        List<PlacementStructurePreview> children = new ArrayList<>();
+        HashMap<String, PlacementStructurePreview> extensions = new HashMap<>();
+        
+        public PlacementStructurePreview(LittleGroup group, StructureLocation location) throws LittleActionException {
+            this.index = structures.size();
+            structures.add(this);
+            
+            this.extension = null;
+            this.parent = null;
+            this.previews = group;
+            this.add = true;
+            cachedStructure = location.find(level);
+            structureIndex = cachedStructure.getIndex();
+        }
+        
+        public PlacementStructurePreview(PlacementStructurePreview parent, LittleGroup previews, String extension) {
+            this.index = structures.size();
+            structures.add(this);
+            
+            this.extension = extension;
+            this.parent = parent;
+            this.previews = previews;
+            if (previews instanceof LittleGroupHolder)
+                cachedStructure = ((LittleGroupHolder) previews).structure;
+        }
+        
+        public int getAttribute() {
+            if (add)
+                return cachedStructure.getAttribute();
+            return previews.getStructureType().attribute;
+        }
+        
+        public int getIndex() {
+            if (structureIndex == -1) {
+                structureIndex = availableIds.nextClearBit(0);
+                availableIds.set(structureIndex);
+            }
+            return structureIndex;
+        }
+        
+        public int countStructureChildren() {
+            int count = 0;
+            for (PlacementStructurePreview preview : children)
+                if (preview.isStructure())
+                    count++;
+            return count;
+        }
+        
+        public boolean isStructure() {
+            return add || previews.hasStructure();
+        }
+        
+        public void addChild(PlacementStructurePreview child) {
+            children.add(child);
+        }
+        
+        public void addExtension(String key, PlacementStructurePreview child) {
+            extensions.put(key, child);
+        }
+        
+        public void place(StructureParentCollection parent, HolderLookup.Provider provider) {
+            if (cachedStructure == null) {
+                cachedStructure = parent.setStructureNBT(previews.getStructureTag(), provider);
+                cachedStructure.children.initAfterPlacing(countStructureChildren());
+            } else {
+                StructureParentCollection.setRelativePos(parent, cachedStructure.mainBlock.getPos().subtract(parent.getPos()));
+                cachedStructure.addBlock(parent);
+            }
+        }
+        
+        public void place() throws LittleActionException {
+            if (isStructure())
+                for (LittlePlaceBox box : previews.getSpecialBoxes()) {
+                    box.add(insideBlockOffset);
+                    box.place(Placement.this, previews.getGrid(), blockOffset, getStructure());
+                }
+            
+            for (PlacementStructurePreview preview : children)
+                preview.place();
+            
+            if (add)
+                cachedStructure.updateStructure();
+        }
+        
+        public LittleStructure getStructure() {
+            return cachedStructure;
+        }
+        
+    }
+    
+}

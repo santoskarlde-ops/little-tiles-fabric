@@ -1,0 +1,162 @@
+package team.creative.littletiles.common.structure.animation.curve;
+
+import net.minecraft.nbt.CompoundTag;
+import team.creative.creativecore.common.util.math.base.Axis;
+import team.creative.creativecore.common.util.math.transformation.Rotation;
+import team.creative.creativecore.common.util.math.vec.Vec1d;
+import team.creative.creativecore.common.util.math.vec.Vec3d;
+import team.creative.creativecore.common.util.math.vec.VecNd;
+import team.creative.creativecore.common.util.registry.NamedTypeRegistry;
+import team.creative.creativecore.common.util.registry.exception.RegistryException;
+import team.creative.littletiles.common.structure.animation.curve.ValueCurveInterpolation.CosineCurve;
+import team.creative.littletiles.common.structure.animation.curve.ValueCurveInterpolation.CubicCurve;
+import team.creative.littletiles.common.structure.animation.curve.ValueCurveInterpolation.HermiteCurve;
+import team.creative.littletiles.common.structure.animation.curve.ValueCurveInterpolation.LinearCurve;
+
+public abstract class ValueCurve<T extends VecNd> {
+    
+    public static final NamedTypeRegistry<ValueCurve> REGISTRY = new NamedTypeRegistry<ValueCurve>().addConstructorPattern(CompoundTag.class);
+    private static final Vec1d ONE_ZERO = new Vec1d();
+    private static final Vec3d THREE_ZERO = new Vec3d();
+    
+    public static final ValueCurve<Vec1d> ONE_EMPTY = new ValueCurve<Vec1d>() {
+        
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
+        
+        @Override
+        public Vec1d value(int tick) {
+            return ONE_ZERO;
+        }
+        
+        @Override
+        public void start(Vec1d start, Vec1d end, int duration) {}
+        
+        @Override
+        public void end() {}
+        
+        @Override
+        protected void saveExtra(CompoundTag nbt) {}
+        
+        @Override
+        public void rotate(Rotation rotation) {}
+        
+        @Override
+        public void mirror(Axis axis) {}
+        
+        @Override
+        public void invert() {}
+        
+        @Override
+        public void reverse(int duration) {}
+        
+        @Override
+        public ValueCurve<Vec1d> copy() {
+            return this;
+        }
+        
+        @Override
+        public boolean modifiable() {
+            return false;
+        }
+        
+    };
+    
+    public static final ValueCurve<Vec3d> THREE_EMPTY = new ValueCurve<Vec3d>() {
+        
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
+        
+        @Override
+        public Vec3d value(int tick) {
+            return THREE_ZERO;
+        }
+        
+        @Override
+        public void start(Vec3d start, Vec3d end, int duration) {}
+        
+        @Override
+        public void end() {}
+        
+        @Override
+        protected void saveExtra(CompoundTag nbt) {}
+        
+        @Override
+        public void rotate(Rotation rotation) {}
+        
+        @Override
+        public void mirror(Axis axis) {}
+        
+        @Override
+        public void invert() {}
+        
+        @Override
+        public void reverse(int duration) {}
+        
+        @Override
+        public ValueCurve<Vec3d> copy() {
+            return this;
+        }
+        
+        @Override
+        public boolean modifiable() {
+            return false;
+        }
+        
+    };
+    
+    public static ValueCurve load(CompoundTag nbt) {
+        try {
+            return REGISTRY.create(nbt.getString("id").orElse(""), nbt);
+        } catch (RegistryException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    
+    static {
+        ValueCurve.REGISTRY.register("linear", LinearCurve.class);
+        ValueCurve.REGISTRY.register("cosine", CosineCurve.class);
+        ValueCurve.REGISTRY.register("cubic", CubicCurve.class);
+        ValueCurve.REGISTRY.register("hermite", HermiteCurve.class);
+    }
+    
+    public ValueCurve() {}
+    
+    public abstract T value(int tick);
+    
+    public CompoundTag save() {
+        CompoundTag nbt = new CompoundTag();
+        nbt.putString("id", REGISTRY.getId(this));
+        saveExtra(nbt);
+        return nbt;
+    }
+    
+    public abstract void start(T start, T end, int duration);
+    
+    public abstract void end();
+    
+    protected abstract void saveExtra(CompoundTag nbt);
+    
+    public abstract void rotate(Rotation rotation);
+    
+    public abstract void mirror(Axis axis);
+    
+    public abstract void invert();
+    
+    public abstract ValueCurve<T> copy();
+    
+    public abstract void reverse(int duration);
+    
+    public boolean isEmpty() {
+        return false;
+    }
+    
+    public boolean modifiable() {
+        return true;
+    }
+    
+}

@@ -1,0 +1,307 @@
+package team.creative.littletiles;
+
+import java.util.function.Supplier;
+
+import com.mojang.serialization.Codec;
+
+import io.netty.buffer.ByteBuf;
+import net.minecraft.util.Util;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.Identifier;
+import net.minecraft.tags.TagKey;
+import net.minecraft.util.ExtraCodecs;
+import net.minecraft.util.datafix.fixes.References;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RotatedPillarBlock;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.material.MapColor;
+import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import team.creative.littletiles.common.block.entity.BESignalConverter;
+import team.creative.littletiles.common.block.entity.BETiles;
+import team.creative.littletiles.common.block.entity.BETilesRendered;
+import team.creative.littletiles.common.block.little.element.LittleElement;
+import team.creative.littletiles.common.block.mc.BlockArrow;
+import team.creative.littletiles.common.block.mc.BlockFlowingLava;
+import team.creative.littletiles.common.block.mc.BlockFlowingWater;
+import team.creative.littletiles.common.block.mc.BlockLava;
+import team.creative.littletiles.common.block.mc.BlockSignalConverter;
+import team.creative.littletiles.common.block.mc.BlockTile;
+import team.creative.littletiles.common.block.mc.BlockWater;
+import team.creative.littletiles.common.entity.EntitySit;
+import team.creative.littletiles.common.entity.PrimedSizedTnt;
+import team.creative.littletiles.common.entity.animation.LittleAnimationEntity;
+import team.creative.littletiles.common.entity.level.LittleLevelEntity;
+import team.creative.littletiles.common.ingredient.BlockIngredientEntry;
+import team.creative.littletiles.common.item.ItemBlockIngredient;
+import team.creative.littletiles.common.item.ItemColorIngredient;
+import team.creative.littletiles.common.item.ItemColorIngredient.ColorIngredientType;
+import team.creative.littletiles.common.item.ItemLittleBag;
+import team.creative.littletiles.common.item.ItemLittleBlueprint;
+import team.creative.littletiles.common.item.ItemLittleChisel;
+import team.creative.littletiles.common.item.ItemLittleGlove;
+import team.creative.littletiles.common.item.ItemLittleHammer;
+import team.creative.littletiles.common.item.ItemLittleMeasureTape;
+import team.creative.littletiles.common.item.ItemLittlePaintBrush;
+import team.creative.littletiles.common.item.ItemLittleSaw;
+import team.creative.littletiles.common.item.ItemLittleScrewdriver;
+import team.creative.littletiles.common.item.ItemLittleWrench;
+import team.creative.littletiles.common.item.ItemMultiTiles;
+import team.creative.littletiles.common.item.ItemPremadeStructure;
+import team.creative.littletiles.common.item.component.MatrixDataComponent;
+import team.creative.littletiles.common.item.component.MeasurementTypeComponent;
+import team.creative.littletiles.common.item.component.MeasurementsComponent;
+import team.creative.littletiles.common.item.component.SelectionComponent;
+import team.creative.littletiles.common.item.component.TileFilterComponent;
+import team.creative.littletiles.common.placement.shape.LittleShapeInstance;
+import team.creative.littletiles.common.recipe.PremadeShapedRecipeSerializer;
+import team.creative.littletiles.common.recipe.PremadeShapelessRecipeSerializer;
+import team.creative.littletiles.common.structure.registry.premade.LittlePremadeRegistry;
+import team.creative.littletiles.common.structure.type.premade.LittleStructurePremade.LittlePremadeType;
+
+public class LittleTilesRegistry {
+    
+    // ITEMS
+    
+    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(BuiltInRegistries.ITEM, LittleTiles.MODID);
+    
+    public static final DeferredHolder<Item, Item> HAMMER = ITEMS.register("hammer", () -> new ItemLittleHammer());
+    public static final DeferredHolder<Item, Item> BLUEPRINT = ITEMS.register("blueprint", () -> new ItemLittleBlueprint());
+    public static final DeferredHolder<Item, Item> ITEM_TILES = ITEMS.register("multi_tiles", () -> new ItemMultiTiles());
+    public static final DeferredHolder<Item, Item> SAW = ITEMS.register("saw", () -> new ItemLittleSaw());
+    public static final DeferredHolder<Item, Item> BAG = ITEMS.register("bag", () -> new ItemLittleBag());
+    public static final DeferredHolder<Item, Item> WRENCH = ITEMS.register("wrench", () -> new ItemLittleWrench());
+    public static final DeferredHolder<Item, Item> SCREWDRIVER = ITEMS.register("screwdriver", () -> new ItemLittleScrewdriver());
+    public static final DeferredHolder<Item, Item> CHISEL = ITEMS.register("chisel", () -> new ItemLittleChisel());
+    public static final DeferredHolder<Item, Item> PAINT_BRUSH = ITEMS.register("paint_brush", () -> new ItemLittlePaintBrush());
+    public static final DeferredHolder<Item, Item> GLOVE = ITEMS.register("glove", () -> new ItemLittleGlove());
+    public static final DeferredHolder<Item, Item> PREMADE = ITEMS.register("premade", () -> new ItemPremadeStructure());
+    public static final DeferredHolder<Item, Item> MEASURE_TAPE = ITEMS.register("measure_tape", () -> new ItemLittleMeasureTape());
+    
+    public static final DeferredHolder<Item, Item> BLOCK_INGREDIENT = ITEMS.register("blockingredient", () -> new ItemBlockIngredient());
+    
+    public static final DeferredHolder<Item, Item> BLACK_COLOR = ITEMS.register("bottle_black", () -> new ItemColorIngredient(ColorIngredientType.black));
+    public static final DeferredHolder<Item, Item> CYAN_COLOR = ITEMS.register("bottle_cyan", () -> new ItemColorIngredient(ColorIngredientType.cyan));
+    public static final DeferredHolder<Item, Item> MAGENTA_COLOR = ITEMS.register("bottle_magenta", () -> new ItemColorIngredient(ColorIngredientType.magenta));
+    public static final DeferredHolder<Item, Item> YELLOW_COLOR = ITEMS.register("bottle_yellow", () -> new ItemColorIngredient(ColorIngredientType.yellow));
+    public static final DeferredHolder<Item, Item> ALPHA_COLOR = ITEMS.register("bottle_alpha", () -> new ItemColorIngredient(ColorIngredientType.alpha));
+    
+    // DATA COMPONENTS
+    
+    public static final DeferredRegister<DataComponentType<?>> DATA_COMPONENTS = DeferredRegister.create(BuiltInRegistries.DATA_COMPONENT_TYPE, LittleTiles.MODID);
+    
+    private static final StreamCodec<ByteBuf, CustomData> CUSTOM_DATA_STREAM_CODEC = ByteBufCodecs.TRUSTED_COMPOUND_TAG.map(CustomData::of, CustomData::copyTag);
+    
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<CustomData>> DATA = DATA_COMPONENTS.register("tool_config", x -> DataComponentType
+            .<CustomData>builder().persistent(CustomData.CODEC).networkSynchronized(CUSTOM_DATA_STREAM_CODEC).build());
+    
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> COLOR_AMOUNT = DATA_COMPONENTS.register("color_amount", x -> DataComponentType
+            .<Integer>builder().persistent(ExtraCodecs.NON_NEGATIVE_INT).networkSynchronized(ByteBufCodecs.INT).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> COLOR = DATA_COMPONENTS.register("color", x -> DataComponentType.<Integer>builder()
+            .persistent(Codec.INT).networkSynchronized(ByteBufCodecs.INT).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> COLOR_SECONDARY = DATA_COMPONENTS.register("color_secondary", x -> DataComponentType
+            .<Integer>builder().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.INT).build());
+    
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<BlockIngredientEntry>> BLOCK_INGREDIENT_ENTRY = DATA_COMPONENTS.register("block_ingredient",
+        x -> DataComponentType.<BlockIngredientEntry>builder().persistent(BlockIngredientEntry.CODEC).networkSynchronized(BlockIngredientEntry.STREAM_CODEC).build());
+    
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<MatrixDataComponent>> MATRIX = DATA_COMPONENTS.register("matrix", x -> DataComponentType
+            .<MatrixDataComponent>builder().persistent(MatrixDataComponent.CODEC).networkSynchronized(MatrixDataComponent.STREAM_CODEC).build());
+    
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<LittleElement>> ELEMENT = DATA_COMPONENTS.register("element", x -> DataComponentType
+            .<LittleElement>builder().persistent(LittleElement.CODEC).networkSynchronized(LittleElement.STREAM_CODEC).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<LittleShapeInstance>> SHAPE = DATA_COMPONENTS.register("shape", x -> DataComponentType
+            .<LittleShapeInstance>builder().persistent(LittleShapeInstance.CODEC).networkSynchronized(LittleShapeInstance.STREAM_CODEC).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<TileFilterComponent>> FILTER = DATA_COMPONENTS.register("filter", x -> DataComponentType
+            .<TileFilterComponent>builder().persistent(TileFilterComponent.CODEC).networkSynchronized(TileFilterComponent.STREAM_CODEC).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<SelectionComponent>> SELECTION = DATA_COMPONENTS.register("selection", x -> DataComponentType
+            .<SelectionComponent>builder().persistent(SelectionComponent.CODEC).networkSynchronized(SelectionComponent.STREAM_CODEC).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<MeasurementsComponent>> MEASUREMENTS = DATA_COMPONENTS.register("measurements",
+        x -> DataComponentType.<MeasurementsComponent>builder().persistent(MeasurementsComponent.CODEC).networkSynchronized(MeasurementsComponent.STREAM_CODEC).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<MeasurementTypeComponent>> MEASUREMENT_TYPE = DATA_COMPONENTS.register("measurement_type",
+        x -> DataComponentType.<MeasurementTypeComponent>builder().persistent(MeasurementTypeComponent.CODEC).networkSynchronized(MeasurementTypeComponent.STREAM_CODEC).build());
+    
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<BlockPos>> FIRST_POS = DATA_COMPONENTS.register("pos1", x -> DataComponentType.<BlockPos>builder()
+            .persistent(BlockPos.CODEC).networkSynchronized(BlockPos.STREAM_CODEC).build());
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<BlockPos>> SECOND_POS = DATA_COMPONENTS.register("pos2", x -> DataComponentType.<BlockPos>builder()
+            .persistent(BlockPos.CODEC).networkSynchronized(BlockPos.STREAM_CODEC).build());
+    
+    // BLOCKS
+    
+    public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(BuiltInRegistries.BLOCK, LittleTiles.MODID);
+    
+    public static final DeferredHolder<Block, Block> BLOCK_TILES = BLOCKS.register("tiles", () -> new BlockTile(false, false));
+    public static final DeferredHolder<Block, Block> BLOCK_TILES_TICKING = BLOCKS.register("tiles_ticking", () -> new BlockTile(true, false));
+    public static final DeferredHolder<Block, Block> BLOCK_TILES_RENDERED = BLOCKS.register("tiles_rendered", () -> new BlockTile(false, true));
+    public static final DeferredHolder<Block, Block> BLOCK_TILES_TICKING_RENDERED = BLOCKS.register("tiles_ticking_rendered", () -> new BlockTile(true, true));
+    
+    public static final DeferredHolder<Block, Block> CLEAN = register("colored_clean", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> FLOOR = register("colored_floor", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> GRAINY_BIG = register("colored_grainy_big", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> GRAINY = register("colored_grainy", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> GRAINY_LOW = register("colored_grainy_low", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> BRICK = register("colored_brick", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> BRICK_BIG = register("colored_brick_big", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> BORDERED = register("colored_bordered", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> CHISELED = register("colored_chiseled", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> BROKEN_BRICK_BIG = register("colored_broken_brick_big", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(
+        MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> CLAY = register("colored_clay", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> STRIPS = register("colored_strips", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> GRAVEL = register("colored_gravel", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> SAND = register("colored_sand", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> STONE = register("colored_stone", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    public static final DeferredHolder<Block, Block> CORK = register("colored_cork", () -> new Block(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)));
+    
+    public static final DeferredHolder<Block, Block> WATER = register("colored_water", () -> new BlockWater(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.COLOR_BLUE)
+            .noCollision()));
+    
+    public static final DeferredHolder<Block, Block> LAVA = register("colored_lava", () -> new BlockLava(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.COLOR_RED)
+            .noCollision()));
+    public static final DeferredHolder<Block, Block> WHITE_LAVA = register("colored_white_lava", () -> new BlockLava(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).mapColor(MapColor.SNOW)
+            .noCollision().lightLevel(x -> 15)));
+    
+    public static final DeferredHolder<Block, Block> STORAGE_BLOCK = register("storage", () -> new Block(BlockBehaviour.Properties.of().sound(SoundType.WOOD).destroyTime(1.5F).strength(1.5F)));
+    
+    public static final DeferredHolder<Block, Block> FLOWING_WATER = BLOCKS.register("colored_water_flowing", () -> new BlockFlowingWater(WATER.holder()));
+    
+    public static final DeferredHolder<Block, Block> FLOWING_LAVA = BLOCKS.register("colored_lava_flowing", () -> new BlockFlowingLava(LAVA.holder()));
+    public static final DeferredHolder<Block, Block> WHITE_FLOWING_LAVA = BLOCKS.register("colored_white_lava_flowing", () -> new BlockFlowingLava(WHITE_LAVA.holder()));
+    
+    public static final DeferredHolder<Block, Block> SINGLE_CABLE = BLOCKS.register("cable_single", () -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(1.5F, 6.0F).sound(
+        SoundType.WOOD)));
+    
+    public static final DeferredHolder<Block, Block> INPUT_ARROW = BLOCKS.register("arrow_input", () -> new BlockArrow());
+    public static final DeferredHolder<Block, Block> OUTPUT_ARROW = BLOCKS.register("arrow_output", () -> new BlockArrow());
+    
+    public static final DeferredHolder<Block, Block> SIGNAL_CONVERTER = register("signal_converter", () -> new BlockSignalConverter());
+    
+    public static final DeferredHolder<Block, Block> MISSING = register("missing", () -> new Block(BlockBehaviour.Properties.of()));
+    
+    @SuppressWarnings("unchecked")
+    private static <T extends Block> DeferredHolder<Block, Block> register(String name, Supplier<? extends T> sup) {
+        var ret = BLOCKS.register(name, sup);
+        ITEMS.register(name, () -> new BlockItem(ret.value(), new Item.Properties()));
+        return (DeferredHolder<Block, Block>) (DeferredHolder<?, ?>) ret;
+    }
+    
+    // BLOCK-TAGS
+    
+    public static final TagKey<Block> STORAGE_BLOCKS_TAG = TagKey.create(Registries.BLOCK, Identifier.tryBuild(LittleTiles.MODID, "storage_blocks"));
+    public static final TagKey<Block> INCOMPATIBLE_TAG = TagKey.create(Registries.BLOCK, Identifier.tryBuild(LittleTiles.MODID, "incompatible"));
+    
+    // BLOCK_ENTITY
+    
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(BuiltInRegistries.BLOCK_ENTITY_TYPE, LittleTiles.MODID);
+    
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BETiles>> BE_TILES_TYPE = registerBlockEntity("tiles", () -> FabricBlockEntityTypeBuilder.create(
+        BETiles::new, BLOCK_TILES.value(), BLOCK_TILES_TICKING.value()).build());
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BETilesRendered>> BE_TILES_TYPE_RENDERED = registerBlockEntity("tiles_rendered",
+        () -> FabricBlockEntityTypeBuilder.create(BETilesRendered::new, BLOCK_TILES_RENDERED.value(), BLOCK_TILES_TICKING_RENDERED.value()).build());
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BESignalConverter>> BE_SIGNALCONVERTER_TYPE = registerBlockEntity("converter",
+        () -> FabricBlockEntityTypeBuilder.create(BESignalConverter::new, SIGNAL_CONVERTER.value()).build());
+    
+    public static <T extends BlockEntity> DeferredHolder<BlockEntityType<?>, BlockEntityType<T>> registerBlockEntity(String name, Supplier<BlockEntityType<T>> sup) {
+        return BLOCK_ENTITIES.register(name, sup);
+    }
+    
+    // ENTITIES
+    
+    public static final DeferredRegister<EntityType<?>> ENTITIES = DeferredRegister.create(BuiltInRegistries.ENTITY_TYPE, LittleTiles.MODID);
+    
+    public static final DeferredHolder<EntityType<?>, EntityType<PrimedSizedTnt>> SIZED_TNT_TYPE = ENTITIES.register("primed_size_tnt", () -> EntityType.Builder.<PrimedSizedTnt>of(
+        PrimedSizedTnt::new, MobCategory.MISC).build(ResourceKey.create(Registries.ENTITY_TYPE, Identifier.tryBuild(LittleTiles.MODID, "primed_size_tnt"))));
+    public static final DeferredHolder<EntityType<?>, EntityType<EntitySit>> SIT_TYPE = ENTITIES.register("sit", () -> EntityType.Builder.<EntitySit>of(EntitySit::new,
+        MobCategory.MISC).build(ResourceKey.create(Registries.ENTITY_TYPE, Identifier.tryBuild(LittleTiles.MODID, "sit"))));
+    
+    public static final DeferredHolder<EntityType<?>, EntityType<LittleAnimationEntity>> ENTITY_ANIMATION = ENTITIES.register("litte_animation", () -> EntityType.Builder
+            .<LittleAnimationEntity>of(LittleAnimationEntity::new, MobCategory.MISC).build(ResourceKey.create(Registries.ENTITY_TYPE, Identifier.tryBuild(LittleTiles.MODID, "litte_animation"))));
+    public static final DeferredHolder<EntityType<?>, EntityType<LittleLevelEntity>> ENTITY_LEVEL = ENTITIES.register("little_level", () -> EntityType.Builder
+            .<LittleLevelEntity>of(LittleLevelEntity::new, MobCategory.MISC).build(ResourceKey.create(Registries.ENTITY_TYPE, Identifier.tryBuild(LittleTiles.MODID, "little_level"))));
+    
+    // DIMENSION
+    
+    public static final ResourceKey FAKE_DIMENSION = ResourceKey.create(Registries.DIMENSION_TYPE, Identifier.tryBuild(LittleTiles.MODID, "fake"));
+    
+    // Recipe Serializer
+    
+    public static final DeferredRegister<RecipeSerializer<?>> RECIPE_SERIALIZERS = DeferredRegister.create(BuiltInRegistries.RECIPE_SERIALIZER, LittleTiles.MODID);
+    
+    public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<? extends CraftingRecipe>> PREMADE_RECIPES = RECIPE_SERIALIZERS.register("crafting_shaped_premade",
+        PremadeShapedRecipeSerializer::create);
+    public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<? extends CraftingRecipe>> PREMADE_RECIPES_SHAPELESS = RECIPE_SERIALIZERS.register(
+        "crafting_shapeless_premade", PremadeShapelessRecipeSerializer::create);
+    
+    // CREATIVE_TAB
+    
+    public static final DeferredRegister<CreativeModeTab> CREATIVE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, LittleTiles.MODID);
+    
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TAB = CREATIVE_TABS.register("items", () -> CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0).icon(() -> new ItemStack(LittleTilesRegistry.HAMMER.value()))
+            .title(Component.translatable("creative_tab.littletiles")).displayItems((features, output) -> {
+                ItemMultiTiles.collectExamples(output);
+                
+                for (LittlePremadeType entry : LittlePremadeRegistry.types())
+                    if (entry.showInCreativeTab && !entry.hasCustomTab())
+                        output.accept(entry.createItemStack());
+                    
+                output.accept(LittleTilesRegistry.HAMMER.value());
+                output.accept(LittleTilesRegistry.CHISEL.value());
+                output.accept(LittleTilesRegistry.BLUEPRINT.value());
+                
+                output.accept(LittleTilesRegistry.BAG.value());
+                output.accept(LittleTilesRegistry.GLOVE.value());
+                
+                output.accept(LittleTilesRegistry.PAINT_BRUSH.value());
+                output.accept(LittleTilesRegistry.MEASURE_TAPE.value());
+                output.accept(LittleTilesRegistry.SCREWDRIVER.value());
+                output.accept(LittleTilesRegistry.WRENCH.value());
+                
+                output.accept(LittleTilesRegistry.SIGNAL_CONVERTER.value());
+                output.accept(LittleTilesRegistry.STORAGE_BLOCK.value());
+                
+                output.accept(LittleTilesRegistry.CLEAN.value());
+                output.accept(LittleTilesRegistry.FLOOR.value());
+                output.accept(LittleTilesRegistry.GRAINY_BIG.value());
+                output.accept(LittleTilesRegistry.GRAINY.value());
+                output.accept(LittleTilesRegistry.GRAINY_LOW.value());
+                output.accept(LittleTilesRegistry.BRICK.value());
+                output.accept(LittleTilesRegistry.BRICK_BIG.value());
+                output.accept(LittleTilesRegistry.BORDERED.value());
+                output.accept(LittleTilesRegistry.CHISELED.value());
+                output.accept(LittleTilesRegistry.BROKEN_BRICK_BIG.value());
+                output.accept(LittleTilesRegistry.CLAY.value());
+                output.accept(LittleTilesRegistry.STRIPS.value());
+                output.accept(LittleTilesRegistry.GRAVEL.value());
+                output.accept(LittleTilesRegistry.SAND.value());
+                output.accept(LittleTilesRegistry.STONE.value());
+                output.accept(LittleTilesRegistry.CORK.value());
+                
+                output.accept(LittleTilesRegistry.WATER.value());
+                
+                output.accept(LittleTilesRegistry.LAVA.value());
+                output.accept(LittleTilesRegistry.WHITE_LAVA.value());
+                
+            }).build());
+    
+}

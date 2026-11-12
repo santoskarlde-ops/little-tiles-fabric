@@ -1,0 +1,43 @@
+package team.creative.littletiles.common.math.face;
+
+import java.util.List;
+
+import team.creative.creativecore.common.util.math.base.Axis;
+import team.creative.creativecore.common.util.math.base.Facing;
+import team.creative.creativecore.common.util.math.geo.VectorFan;
+import team.creative.littletiles.common.grid.IGridBased;
+import team.creative.littletiles.common.math.box.LittleBox;
+
+public sealed interface ILittleFace extends IGridBased permits LittleFace, LittleServerFace {
+    
+    public LittleBox box();
+    
+    public Facing facing();
+    
+    public Axis one();
+    
+    public Axis two();
+    
+    public int origin();
+    
+    public int minOne();
+    
+    public int minTwo();
+    
+    public int maxOne();
+    
+    public int maxTwo();
+    
+    public void set(int one, int two, boolean value);
+    
+    public boolean supportsCutting();
+    
+    public void cut(List<VectorFan> fans);
+    
+    public void setPartiallyFilled();
+    
+    public boolean isFilled();
+    
+    public boolean isPartiallyFilled();
+    
+}

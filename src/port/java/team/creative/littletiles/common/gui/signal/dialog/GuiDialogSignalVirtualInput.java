@@ -1,0 +1,185 @@
+package team.creative.littletiles.common.gui.signal.dialog;
+
+import java.util.List;
+
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import team.creative.creativecore.common.gui.GuiLayer;
+import team.creative.creativecore.common.gui.GuiParent;
+import team.creative.creativecore.common.gui.VAlign;
+import team.creative.creativecore.common.gui.control.parent.GuiLeftRightBox;
+import team.creative.creativecore.common.gui.control.parent.GuiPanel;
+import team.creative.creativecore.common.gui.control.parent.GuiScrollY;
+import team.creative.creativecore.common.gui.control.simple.GuiButton;
+import team.creative.creativecore.common.gui.control.simple.GuiCounter;
+import team.creative.creativecore.common.gui.control.simple.GuiLabel;
+import team.creative.creativecore.common.gui.control.simple.GuiStateButton;
+import team.creative.creativecore.common.gui.event.GuiControlChangedEvent;
+import team.creative.creativecore.common.gui.flow.GuiFlow;
+import team.creative.creativecore.common.util.text.TextMapBuilder;
+import team.creative.littletiles.LittleTilesGuiRegistry;
+import team.creative.littletiles.common.gui.signal.GuiSignalComponent;
+import team.creative.littletiles.common.gui.signal.IConditionConfiguration;
+import team.creative.littletiles.common.gui.signal.mode.GuiSignalModeConfiguration;
+import team.creative.littletiles.common.gui.signal.node.GuiSignalNodeVirtualInput;
+import team.creative.littletiles.common.structure.signal.component.SignalComponentType;
+import team.creative.littletiles.common.structure.signal.input.SignalInputCondition;
+import team.creative.littletiles.common.structure.signal.input.SignalInputCondition.SignalInputVirtualNumber;
+import team.creative.littletiles.common.structure.signal.input.SignalInputCondition.SignalPosition;
+
+public class GuiDialogSignalVirtualInput extends GuiLayer {
+    
+    public GuiSignalNodeVirtualInput input;
+    public List<GuiSignalComponent> inputs;
+    public GuiVirtualInputIndexConfiguration[] config;
+    
+    public GuiDialogSignalVirtualInput(boolean client) {
+        super(client, "gui.dialog.signal.virtual_input", 230, 200);
+        setFlow(GuiFlow.STACK_Y);
+        registerEventChanged(this::changed);
+    }
+    
+    public void init(List<GuiSignalComponent> inputs, GuiSignalNodeVirtualInput input) {
+        this.input = input;
+        this.inputs = inputs;
+        super.init();
+    }
+    
+    @Override
+    public void create() {
+        if (input == null)
+            return;
+        GuiParent top = new GuiParent(this);
+        add(top);
+        top.add(new GuiLabel(top, "bandwidth_label").setTitle(Component.translatable("gui.signal.bandwidth").append(":")));
+        top.add(new GuiCounter(top, "bandwidth", input.conditions.length, 0, 256).setExpandableX());
+        add(new GuiScrollY(this, "config").setExpandable());
+        
+        GuiLeftRightBox bottom = new GuiLeftRightBox(this);
+        add(bottom);
+        
+        bottom.addLeft(new GuiButton(bottom, "cancel", x -> closeThisLayer()).setTranslate("gui.cancel"));
+        bottom.addRight(new GuiButton(bottom, "save", x -> {
+            input.conditions = new SignalInputCondition[config.length];
+            for (int i = 0; i < config.length; i++)
+                input.conditions[i] = config[i].parse();
+            input.updateLabel();
+            closeThisLayer();
+            
+        }).setTranslate("gui.save"));
+        loadConditions();
+    }
+    
+    public void changed(GuiControlChangedEvent event) {
+        if (event.control.is("bandwidth"))
+            loadConditions();
+    }
+    
+    public void loadConditions() {
+        GuiScrollY box = get("config");
+        box.clear();
+        GuiCounter counter = get("bandwidth");
+        int bandwidth = counter.getValue();
+        config = new GuiVirtualInputIndexConfiguration[bandwidth];
+        for (int i = 0; i < bandwidth; i++) {
+            GuiVirtualInputIndexConfiguration index = new GuiVirtualInputIndexConfiguration(i < input.conditions.length ? input.conditions[i] : new SignalInputVirtualNumber(0, null), i);
+            index.create(box);
+            config[i] = index;
+        }
+    }
+    
+    public class GuiVirtualInputIndexConfiguration implements IConditionConfiguration {
+        
+        public final GuiSignalComponent output;
+        public final int index;
+        public SignalInputCondition condition;
+        public SignalPosition outputPosition;
+        public GuiPanel panel;
+        
+        public GuiVirtualInputIndexConfiguration(SignalInputCondition condition, int index) {
+            this.output = new GuiSignalComponent("" + index, "" + index, 1, SignalComponentType.OUTPUT, false, index);
+            this.index = index;
+            this.condition = condition;
+        }
+        
+        public void create(GuiScrollY box) {
+            panel = new GuiPanel(box, index + "", GuiFlow.STACK_X);
+            panel.setVAlign(VAlign.CENTER);
+            box.add(panel.setExpandableX());
+            
+            panel.registerEventChanged(x -> {
+                if (x.control.is("type"))
+                    update();
+            });
+            
+            panel.add(new GuiLabel(panel, "label").setTitle(Component.literal(index + ": " + (condition != null ? condition.write() : "0"))));
+            int state = 0;
+            if (condition instanceof SignalInputVirtualNumber virtual)
+                state = virtual.number == 1 ? 1 : 0;
+            else
+                state = 2;
+            panel.add(new GuiStateButton<Integer>(panel, "type", state, new TextMapBuilder<Integer>().addComponent(0, Component.translatable("gui.false")).addComponent(1, Component
+                    .translatable("gui.true")).addComponent(2, Component.translatable("gui.signal.equation"))));
+            panel.add(new GuiButton(panel, "edit", x -> LittleTilesGuiRegistry.SIGNAL_DIALOG.open(getIntegratedParent(), new CompoundTag()).init(inputs,
+                GuiVirtualInputIndexConfiguration.this)).setTranslate("gui.edit"));
+            update();
+        }
+        
+        @Override
+        public void update() {
+            GuiLabel label = (GuiLabel) panel.get("label");
+            GuiStateButton<Integer> type = (GuiStateButton) panel.get("type");
+            GuiButton edit = (GuiButton) panel.get("edit");
+            
+            label.setTitle(Component.literal(index + ": " + parse().write()));
+            edit.setEnabled(type.selected() == 2);
+        }
+        
+        public SignalInputCondition parse() {
+            GuiStateButton<Integer> type = (GuiStateButton) panel.get("type");
+            if (type.selected() == 0)
+                return new SignalInputVirtualNumber(0, null);
+            else if (type.selected() == 1)
+                return new SignalInputVirtualNumber(1, null);
+            if (condition != null)
+                return condition;
+            return new SignalInputVirtualNumber(0, null);
+        }
+        
+        @Override
+        public GuiSignalComponent getOutput() {
+            return output;
+        }
+        
+        @Override
+        public SignalInputCondition getCondition() {
+            return condition;
+        }
+        
+        @Override
+        public SignalPosition getOutputPosition() {
+            return outputPosition;
+        }
+        
+        @Override
+        public void setCondition(SignalInputCondition condition, SignalPosition outputPosition) {
+            this.condition = condition;
+            this.outputPosition = outputPosition;
+        }
+        
+        @Override
+        public boolean hasModeConfiguration() {
+            return false;
+        }
+        
+        @Override
+        public GuiSignalModeConfiguration getModeConfiguration() {
+            return null;
+        }
+        
+        @Override
+        public void setModeConfiguration(GuiSignalModeConfiguration config) {}
+        
+    }
+    
+}

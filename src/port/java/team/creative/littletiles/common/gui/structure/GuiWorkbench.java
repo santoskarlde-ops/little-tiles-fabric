@@ -1,0 +1,173 @@
+package team.creative.littletiles.common.gui.structure;
+
+import team.creative.creativecore.common.gui.IGuiParent;
+import java.util.ArrayList;
+import java.util.List;
+
+import net.minecraft.nbt.EndTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.util.Prediction;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import team.creative.creativecore.common.gui.Align;
+import team.creative.creativecore.common.gui.GuiLayer;
+import team.creative.creativecore.common.gui.GuiParent;
+import team.creative.creativecore.common.gui.VAlign;
+import team.creative.creativecore.common.gui.control.collection.GuiListBoxBase;
+import team.creative.creativecore.common.gui.control.inventory.GuiPlayerInventoryGrid;
+import team.creative.creativecore.common.gui.control.inventory.GuiSlot;
+import team.creative.creativecore.common.gui.control.inventory.IGuiInventory;
+import team.creative.creativecore.common.gui.control.simple.GuiButton;
+import team.creative.creativecore.common.gui.control.simple.GuiLabel;
+import team.creative.creativecore.common.gui.flow.GuiFlow;
+import team.creative.creativecore.common.gui.sync.GuiSyncLocal;
+import team.creative.creativecore.common.util.mc.PlayerUtils;
+import team.creative.creativecore.common.util.text.content.ContentItemStack;
+import team.creative.littletiles.api.common.tool.ILittlePlacer;
+import team.creative.littletiles.api.common.tool.ILittleTool;
+import team.creative.littletiles.common.action.LittleAction;
+import team.creative.littletiles.common.action.source.LittleActionSource;
+import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
+import team.creative.littletiles.common.ingredient.BlockIngredient;
+import team.creative.littletiles.common.ingredient.BlockIngredientEntry;
+import team.creative.littletiles.common.ingredient.ColorIngredient;
+import team.creative.littletiles.common.ingredient.LittleIngredients;
+import team.creative.littletiles.common.ingredient.LittleInventory;
+import team.creative.littletiles.common.ingredient.NotEnoughIngredientsException;
+import team.creative.littletiles.common.ingredient.StackIngredient;
+import team.creative.littletiles.common.ingredient.StackIngredientEntry;
+import team.creative.littletiles.common.item.ItemLittleBlueprint;
+import team.creative.littletiles.common.item.ItemMultiTiles;
+import team.creative.littletiles.common.compat.chiselsandbits.ChiselsAndBitsManager;
+
+public class GuiWorkbench extends GuiLayer {
+    
+    public SimpleContainer crafting = new SimpleContainer(2);
+    public final GuiSyncLocal<EndTag> CRAFT = getSyncHolder().register("craft", x -> {
+        ItemStack input1 = crafting.getItem(0);
+        ItemStack input2 = crafting.getItem(1);
+        
+        GuiListBoxBase<GuiLabel> listBox = get("missing");
+        listBox.clearItems();
+        
+        if (!input1.isEmpty()) {
+            if (input1.getItem() instanceof ItemLittleBlueprint item && input2.isEmpty()) {
+                if (!item.hasTiles(input1))
+                    return;
+                LittleGroup group = item.getTiles(input1);
+                
+                Player player = getPlayer();
+                LittleInventory inventory = new LittleInventory(player);
+                LittleIngredients ingredients = LittleAction.getIngredients(getPlayer().registryAccess(), group);
+                
+                try {
+                    if (LittleAction.checkAndTake((LittleActionSource) player, inventory, ingredients)) {
+                        ItemStack stack = ItemMultiTiles.of(group);
+                        if (!player.getInventory().add(stack))
+                            player.drop(stack, false, Prediction.PREDICTED);
+                    }
+                } catch (NotEnoughIngredientsException e2) {
+                    LittleIngredients missing = e2.getIngredients();
+                    
+                    BlockIngredient blocks = missing.get(BlockIngredient.class);
+                    if (blocks != null)
+                        for (BlockIngredientEntry ingredient : blocks)
+                            listBox.addItem(new GuiLabel(this, "").setTitle(MutableComponent.create(new ContentItemStack(ingredient.getBlockStack())).append(BlockIngredient.printVolume(
+                                ingredient.value, true))));
+                        
+                    ColorIngredient color = missing.get(ColorIngredient.class);
+                    if (color != null) {
+                        if (color.black > 0)
+                            listBox.addItem(new GuiLabel(this, "").setTitle(Component.literal(color.getBlackDescription())));
+                        if (color.cyan > 0)
+                            listBox.addItem(new GuiLabel(this, "").setTitle(Component.literal(color.getCyanDescription())));
+                        if (color.magenta > 0)
+                            listBox.addItem(new GuiLabel(this, "").setTitle(Component.literal(color.getMagentaDescription())));
+                        if (color.yellow > 0)
+                            listBox.addItem(new GuiLabel(this, "").setTitle(Component.literal(color.getYellowDescription())));
+                        if (color.alpha > 0)
+                            listBox.addItem(new GuiLabel(this, "").setTitle(Component.literal(color.getAlphaDescription())));
+                    }
+                    
+                    StackIngredient stacks = missing.get(StackIngredient.class);
+                    if (stacks != null)
+                        for (StackIngredientEntry stack : stacks)
+                            listBox.addItem(new GuiLabel(this, "").setTitle(MutableComponent.create(new ContentItemStack(stack.stack)).append("" + stack.count)));
+                }
+                
+            } else if (ChiselsAndBitsManager.isChiselsAndBitsStructure(input1)) {
+                LittleGroup group = ChiselsAndBitsManager.getGroup(input1);
+                if (group != null && !group.isEmpty() && input2.isEmpty()) {
+                    crafting.setItem(0, ItemStack.EMPTY);
+                    crafting.setItem(1, ItemMultiTiles.of(group));
+                }
+            } else {
+                if (input1.getItem() instanceof ILittlePlacer && input2.getItem() instanceof ItemLittleBlueprint)
+                    ILittleTool.setData(input2, ILittleTool.getData(input1).copy());
+            }
+        }
+    });
+    
+    public GuiWorkbench(boolean client) {
+        super(client, "workbench");
+    }
+    
+    @Override
+    public void create() {
+        setFlow(GuiFlow.STACK_Y);
+        setAlign(Align.CENTER);
+        add(new CraftingGrid(this));
+        add(new GuiListBoxBase<GuiLabel>(this, "missing", false, new ArrayList<>()).setDim(150, 100));
+        add(new GuiPlayerInventoryGrid(this).setFixedX());
+    }
+    
+    @Override
+    public void closed() {
+        super.closed();
+        PlayerUtils.addOrDrop(getPlayer(), crafting);
+    }
+    
+    public class CraftingGrid extends GuiParent implements IGuiInventory {
+        
+        private List<GuiSlot> slots = new ArrayList<>();
+        
+        public CraftingGrid(IGuiParent parent) {
+            super(parent, "crafting", GuiFlow.STACK_X);
+            setVAlign(VAlign.CENTER);
+            addSlot(new GuiSlot(this, crafting, 0));
+            add(new GuiLabel(this, "->").setTitle(Component.literal("->")));
+            addSlot(new GuiSlot(this, crafting, 1));
+            add(new GuiButton(this, "craft", x -> CRAFT.sendAndExecute(GuiWorkbench.this, EndTag.INSTANCE)).setTranslate("gui.craft"));
+        }
+        
+        public GuiSlot addSlot(GuiSlot slot) {
+            slots.add(slot);
+            add(slot);
+            return slot;
+        }
+        
+        @Override
+        public GuiSlot getSlot(int index) {
+            return slots.get(index);
+        }
+        
+        @Override
+        public int inventorySize() {
+            return slots.size();
+        }
+        
+        @Override
+        public String name() {
+            return name;
+        }
+        
+        @Override
+        public void setChanged() {}
+        
+        @Override
+        public void setChanged(int slotIndex) {}
+        
+    }
+}

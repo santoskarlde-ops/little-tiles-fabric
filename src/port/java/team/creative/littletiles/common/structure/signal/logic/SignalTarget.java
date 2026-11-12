@@ -1,0 +1,470 @@
+package team.creative.littletiles.common.structure.signal.logic;
+
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
+
+import team.creative.littletiles.common.structure.exception.CorruptedConnectionException;
+import team.creative.littletiles.common.structure.exception.NotYetConnectedException;
+import team.creative.littletiles.common.structure.signal.SignalContext;
+import team.creative.littletiles.common.structure.signal.SignalState;
+import team.creative.littletiles.common.structure.signal.component.ISignalComponent;
+
+public abstract class SignalTarget {
+    
+    public static SignalTarget parseTarget(SignalPatternParser parser, boolean onlyOutputs, boolean insideVariable) throws ParseException {
+        char begin = parser.next(true);
+        if (begin == 'a' || begin == 'b' || begin == 'i' || begin == 'o') {
+            if (insideVariable)
+                throw parser.exception("Invalid usuage of variables in sub equation, only d<index> are allowed");
+            boolean external = begin == 'i' || begin == 'o';
+            boolean input = begin == 'a' || begin == 'i';
+            if (onlyOutputs && input)
+                throw parser.exception("Input cannot be defined in output condition");
+            
+            int child = parser.parseNumber();
+            
+            if (parser.hasNext() && parser.lookForNext(false) == '[') {
+                parser.next(false);
+                if (parser.lookForNext(true) == ']')
+                    return new SignalTargetChild(input, child, external);
+                SignalCustomIndex first = parseIndex(parser);
+                char next = parser.lookForNext(true);
+                
+                if (next == ']') {
+                    parser.next(true);
+                    if (first instanceof SignalCustomIndexSingle s)
+                        return new SignalTargetChildIndex(input, child, external, s.index);
+                    else if (first instanceof SignalCustomIndexRange r)
+                        return new SignalTargetChildIndexRange(input, child, external, r.index, r.length);
+                    throw parser.exception("Invalid index");
+                } else if (next == ',') {
+                    List<SignalCustomIndex> indexes = new ArrayList<>();
+                    indexes.add(first);
+                    while ((next = parser.next(true)) == ',')
+                        indexes.add(parseIndex(parser));
+                    if (next == ']')
+                        return new SignalTargetChildCustomIndex(input, child, external, indexes.toArray(new SignalCustomIndex[indexes.size()]));
+                    throw parser.invalidChar(next);
+                } else
+                    throw parser.invalidChar(next);
+            } else
+                return new SignalTargetChild(input, child, external);
+        } else if (begin == 'c') {
+            int child = parser.parseNumber();
+            if (parser.next(false) == '.')
+                return new SignalTargetNested(child, parseTarget(parser, onlyOutputs, insideVariable));
+            else
+                throw parser.exception("Missing dot after child input");
+        } else if (begin == 'p') {
+            if (parser.next(false) == '.')
+                return new SignalTargetParent(parseTarget(parser, onlyOutputs, insideVariable));
+            else
+                throw parser.exception("Missing dot after child input");
+        } else if (begin == 'd') {
+            if (!insideVariable)
+                throw parser.exception("Invalid usage of index variable");
+            return new SignalTargetIndex(parser.parseNumber());
+        } else
+            throw parser.invalidChar(begin);
+    }
+    
+    public static SignalCustomIndex parseIndex(SignalPatternParser parser) throws ParseException {
+        int start = parser.parseNumber();
+        if (parser.lookForNext(true) != '-')
+            return new SignalCustomIndexSingle(start);
+        parser.next(true);
+        int end = parser.parseNumber();
+        if (end <= start)
+            throw parser.exception("Invalid second index " + start + " < " + end);
+        return new SignalCustomIndexRange(start, end);
+    }
+    
+    public static String name(boolean external, boolean input, int index) {
+        if (external)
+            return (input ? "i" : "o") + index;
+        return (input ? "a" : "b") + index;
+    }
+    
+    public final int child;
+    
+    public SignalTarget(int child) {
+        this.child = child;
+    }
+    
+    public final SignalState getState(SignalContext context) {
+        try {
+            return getState(getTarget(context));
+        } catch (CorruptedConnectionException | NotYetConnectedException e) {
+            return SignalState.FALSE;
+        }
+    }
+    
+    public final int bandwidth(SignalContext context) {
+        try {
+            return getTarget(context).getBandwidth();
+        } catch (CorruptedConnectionException | NotYetConnectedException e) {
+            return 1;
+        }
+    }
+    
+    protected SignalState getState(ISignalComponent component) throws CorruptedConnectionException, NotYetConnectedException {
+        if (component == null)
+            throw new NotYetConnectedException();
+        return component.getState();
+    }
+    
+    public abstract ISignalComponent getTarget(SignalContext context);
+    
+    public abstract String writeBase();
+    
+    public abstract String write();
+    
+    public abstract boolean isIndexVariable();
+    
+    public int getBandwidth(SignalContext structure) throws CorruptedConnectionException, NotYetConnectedException {
+        ISignalComponent component = getTarget(structure);
+        if (component != null)
+            return component.getBandwidth();
+        return 1;
+    }
+    
+    public SignalTarget getNestedTarget() {
+        return this;
+    }
+    
+    public static class SignalTargetNested extends SignalTarget {
+        
+        public final SignalTarget subTarget;
+        
+        public SignalTargetNested(int child, SignalTarget subTarget) {
+            super(child);
+            this.subTarget = subTarget;
+        }
+        
+        @Override
+        protected SignalState getState(ISignalComponent component) throws CorruptedConnectionException, NotYetConnectedException {
+            return subTarget.getState(component);
+        }
+        
+        @Override
+        public ISignalComponent getTarget(SignalContext context) {
+            try {
+                return subTarget.getTarget(context.getNestedSignalContext(child));
+            } catch (CorruptedConnectionException | NotYetConnectedException e) {}
+            return null;
+        }
+        
+        @Override
+        public String writeBase() {
+            return "c" + child + "." + subTarget.writeBase();
+        }
+        
+        @Override
+        public String write() {
+            return "c" + child + "." + subTarget.write();
+        }
+        
+        @Override
+        public boolean isIndexVariable() {
+            return subTarget.isIndexVariable();
+        }
+        
+        @Override
+        public SignalTarget getNestedTarget() {
+            return subTarget;
+        }
+    }
+    
+    public static class SignalTargetParent extends SignalTarget {
+        
+        public final SignalTarget subTarget;
+        
+        public SignalTargetParent(SignalTarget subTarget) {
+            super(-1);
+            this.subTarget = subTarget;
+        }
+        
+        @Override
+        public ISignalComponent getTarget(SignalContext context) {
+            if (context.hasSignalContextParent())
+                try {
+                    
+                    return subTarget.getTarget(context.getParentSignalContext());
+                } catch (CorruptedConnectionException | NotYetConnectedException e) {}
+            return null;
+        }
+        
+        @Override
+        protected SignalState getState(ISignalComponent component) throws CorruptedConnectionException, NotYetConnectedException {
+            return subTarget.getState(component);
+        }
+        
+        @Override
+        public String writeBase() {
+            return "p." + subTarget.writeBase();
+        }
+        
+        @Override
+        public String write() {
+            return "p." + subTarget.write();
+        }
+        
+        @Override
+        public boolean isIndexVariable() {
+            return subTarget.isIndexVariable();
+        }
+        
+        @Override
+        public SignalTarget getNestedTarget() {
+            return subTarget;
+        }
+    }
+    
+    public static class SignalTargetIndex extends SignalTarget {
+        
+        public SignalTargetIndex(int index) {
+            super(index);
+        }
+        
+        @Override
+        public ISignalComponent getTarget(SignalContext context) {
+            return null;
+        }
+        
+        @Override
+        public String writeBase() {
+            return "d" + child;
+        }
+        
+        @Override
+        public String write() {
+            return "d" + child;
+        }
+        
+        @Override
+        public boolean isIndexVariable() {
+            return true;
+        }
+        
+    }
+    
+    public static class SignalTargetChild extends SignalTarget {
+        
+        public final boolean input;
+        
+        public final boolean external;
+        
+        public SignalTargetChild(boolean input, int child, boolean external) {
+            super(child);
+            this.input = input;
+            this.external = external;
+        }
+        
+        @Override
+        public ISignalComponent getTarget(SignalContext context) {
+            return input ? context.getInput(child, external) : context.getOutput(child, external);
+        }
+        
+        @Override
+        public String writeBase() {
+            if (external)
+                return (input ? "i" : "o") + child;
+            return (input ? "a" : "b") + child;
+        }
+        
+        @Override
+        public String write() {
+            if (external)
+                return (input ? "i" : "o") + child;
+            return (input ? "a" : "b") + child;
+        }
+        
+        @Override
+        public boolean isIndexVariable() {
+            return false;
+        }
+        
+    }
+    
+    public static class SignalTargetChildIndex extends SignalTargetChild {
+        
+        public final int index;
+        
+        public SignalTargetChildIndex(boolean input, int child, boolean external, int index) {
+            super(input, child, external);
+            this.index = index;
+        }
+        
+        @Override
+        protected SignalState getState(ISignalComponent component) throws CorruptedConnectionException, NotYetConnectedException {
+            SignalState state = component.getState();
+            if (component.getBandwidth() > index)
+                return SignalState.of(state.is(index));
+            return SignalState.FALSE;
+        }
+        
+        @Override
+        public String write() {
+            return super.write() + "[" + index + "]";
+        }
+        
+        @Override
+        public int getBandwidth(SignalContext context) {
+            return 1;
+        }
+        
+    }
+    
+    public static class SignalTargetChildIndexRange extends SignalTargetChild {
+        
+        public final int index;
+        public final int length;
+        
+        public SignalTargetChildIndexRange(boolean input, int output, boolean external, int index, int length) {
+            super(input, output, external);
+            this.index = index;
+            this.length = length;
+        }
+        
+        @Override
+        protected SignalState getState(ISignalComponent component) throws CorruptedConnectionException, NotYetConnectedException {
+            SignalState state = component.getState();
+            SignalState newState = SignalState.create(length);
+            for (int i = 0; i < length; i++)
+                if (component.getBandwidth() > i + index)
+                    newState = newState.set(i, state.is(index + 1));
+            return newState;
+        }
+        
+        @Override
+        public String write() {
+            return super.write() + "[" + index + "-" + index + length + "]";
+        }
+        
+        @Override
+        public int getBandwidth(SignalContext context) {
+            return length;
+        }
+        
+    }
+    
+    public static class SignalTargetChildCustomIndex extends SignalTargetChild {
+        
+        public final SignalCustomIndex[] indexes;
+        
+        public SignalTargetChildCustomIndex(boolean input, int child, boolean external, SignalCustomIndex[] indexes) {
+            super(input, child, external);
+            this.indexes = indexes;
+        }
+        
+        @Override
+        protected SignalState getState(ISignalComponent component) throws CorruptedConnectionException, NotYetConnectedException {
+            SignalState state = component.getState();
+            int bandwidth = getBandwidth(component.getStructure());
+            if (bandwidth == 1)
+                return SignalState.of(indexes[0].is(state));
+            SignalState newState = SignalState.create(bandwidth);
+            int index = 0;
+            for (int i = 0; i < indexes.length; i++)
+                index += indexes[i].set(newState, index, state);
+            return newState;
+        }
+        
+        @Override
+        public String write() {
+            String result = super.write() + "[";
+            for (int i = 0; i < indexes.length; i++) {
+                if (i > 0)
+                    result += ",";
+                result += indexes[i].write();
+            }
+            return result + "]";
+        }
+        
+        @Override
+        public int getBandwidth(SignalContext context) {
+            int length = 0;
+            for (int i = 0; i < indexes.length; i++)
+                length += indexes[i].length();
+            return length;
+        }
+        
+    }
+    
+    public static abstract class SignalCustomIndex {
+        
+        public abstract String write();
+        
+        public abstract int length();
+        
+        public abstract boolean is(SignalState state);
+        
+        public abstract int set(SignalState toModify, int index, SignalState value);
+        
+    }
+    
+    public static class SignalCustomIndexSingle extends SignalCustomIndex {
+        
+        public final int index;
+        
+        public SignalCustomIndexSingle(int index) {
+            this.index = index;
+        }
+        
+        @Override
+        public boolean is(SignalState state) {
+            return state.is(index);
+        }
+        
+        @Override
+        public int set(SignalState toModify, int index, SignalState value) {
+            toModify.set(index, value.is(index));
+            return 1;
+        }
+        
+        @Override
+        public String write() {
+            return index + "";
+        }
+        
+        @Override
+        public int length() {
+            return 1;
+        }
+    }
+    
+    public static class SignalCustomIndexRange extends SignalCustomIndex {
+        
+        public final int index;
+        public final int length;
+        
+        public SignalCustomIndexRange(int start, int end) {
+            this.index = start;
+            this.length = end - index + 1;
+        }
+        
+        @Override
+        public boolean is(SignalState state) {
+            return state.is(index);
+        }
+        
+        @Override
+        public int set(SignalState toModify, int index, SignalState value) {
+            for (int i = 0; i < length; i++)
+                toModify.set(index + i, value.is(index + i));
+            return length;
+        }
+        
+        @Override
+        public String write() {
+            return index + "-" + (index + length - 1);
+        }
+        
+        @Override
+        public int length() {
+            return length;
+        }
+    }
+    
+}

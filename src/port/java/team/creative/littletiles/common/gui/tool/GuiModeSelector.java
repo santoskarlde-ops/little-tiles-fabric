@@ -1,0 +1,65 @@
+package team.creative.littletiles.common.gui.tool;
+
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.PatchedDataComponentMap;
+import team.creative.creativecore.common.gui.GuiParent;
+import team.creative.creativecore.common.gui.control.collection.GuiComboBox;
+import team.creative.creativecore.common.gui.control.simple.GuiLabel;
+import team.creative.creativecore.common.gui.event.GuiControlChangedEvent;
+import team.creative.creativecore.common.gui.flow.GuiFlow;
+import team.creative.creativecore.common.util.inventory.ContainerSlotView;
+import team.creative.creativecore.common.util.text.TextBuilder;
+import team.creative.littletiles.common.grid.LittleGrid;
+import team.creative.littletiles.common.gui.control.GuiGridConfig;
+import team.creative.littletiles.common.placement.mode.PlacementMode;
+
+public abstract class GuiModeSelector extends GuiConfigure {
+    
+    public LittleGrid grid;
+    public PlacementMode mode;
+    
+    public GuiModeSelector(boolean client, ContainerSlotView view, LittleGrid grid, PlacementMode mode) {
+        super(client, "mode-selector", 150, 150, view);
+        this.grid = grid;
+        this.mode = mode;
+        registerEventChanged(x -> {
+            if (x.control.is("mode")) {
+                TextBuilder builder = new TextBuilder();
+                if (getMode().canPlaceStructures())
+                    builder.text("" + ChatFormatting.BOLD).translate("placement.mode.placestructure").text("" + ChatFormatting.WHITE).newLine();
+                builder.translate(getMode().translatableKey() + ".tooltip");
+                ((GuiLabel) get("text")).setTitle(builder.build());
+            }
+        });
+    }
+    
+    @Override
+    public void create() {
+        GuiParent place = new GuiParent(this, GuiFlow.STACK_Y);
+        add(place);
+        GuiComboBox<PlacementMode> box = new GuiComboBox<>(place, "mode", PlacementMode.map());
+        box.select(mode);
+        place.add(box);
+        place.add(new GuiLabel(place, "text"));
+        GuiGridConfig gridBox = new GuiGridConfig(this, "grid", getPlayer(), grid, null);
+        gridBox.select(grid);
+        add(gridBox);
+        raiseEvent(new GuiControlChangedEvent(box));
+    }
+    
+    public PlacementMode getMode() {
+        GuiComboBox<PlacementMode> box = get("mode");
+        return box.selected(PlacementMode.getDefault());
+    }
+    
+    public abstract boolean saveConfiguration(DataComponentMap data, LittleGrid grid, PlacementMode mode);
+    
+    @Override
+    public boolean saveConfiguration(PatchedDataComponentMap data) {
+        mode = getMode();
+        grid = get("grid", GuiGridConfig.class).get();
+        return saveConfiguration(data, grid, mode);
+    }
+    
+}

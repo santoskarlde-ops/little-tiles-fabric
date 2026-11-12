@@ -1,0 +1,138 @@
+package team.creative.littletiles.common.gui.structure;
+
+import net.minecraft.nbt.EndTag;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import team.creative.creativecore.common.gui.Align;
+import team.creative.creativecore.common.gui.GuiLayer;
+import team.creative.creativecore.common.gui.GuiParent;
+import team.creative.creativecore.common.gui.control.inventory.GuiInventoryGrid;
+import team.creative.creativecore.common.gui.control.inventory.GuiPlayerInventoryGrid;
+import team.creative.creativecore.common.gui.control.parent.GuiScrollY;
+import team.creative.creativecore.common.gui.control.simple.GuiButton;
+import team.creative.creativecore.common.gui.flow.GuiFlow;
+import team.creative.creativecore.common.gui.sync.GuiSyncLocal;
+import team.creative.creativecore.common.util.inventory.InventoryUtils;
+import team.creative.littletiles.common.structure.type.LittleStorage;
+
+public class GuiStorage extends GuiLayer {
+    
+    public LittleStorage storage;
+    public final StorageSize size;
+    public final GuiSyncLocal<EndTag> SORT = getSyncHolder().register("sort", x -> {
+        InventoryUtils.sortInventory(storage.inventory, false);
+        get("storage", GuiInventoryGrid.class).setChanged();
+    });
+    
+    public GuiStorage(boolean client, LittleStorage storage, Player player) {
+        super(client, "little_storage");
+        this.size = StorageSize.getSizeFromInventory(storage.inventory);
+        if (size.expanded)
+            setDim(size.guiWidth, size.guiHeight);
+        this.storage = storage;
+        if (!player.level().isClientSide())
+            this.storage.openContainer(this);
+    }
+    
+    @Override
+    public void create() {
+        setFlow(GuiFlow.STACK_Y);
+        setAlign(Align.CENTER);
+        
+        GuiParent parent = this;
+        if (size.scrollbox) {
+            parent = new GuiScrollY(this);
+            if (size.expanded)
+                parent.setExpandableX();
+            add(parent);
+        }
+        
+        GuiInventoryGrid inv = new GuiInventoryGrid(this, "storage", storage.inventory, size.cols, (int) Math.ceil(storage.inventory.getContainerSize() / (double) size.cols), (c, i) -> {
+            if (i + 1 == storage.numberOfSlots && storage.lastSlotStackSize > 0)
+                return new StorageSlot(c, i, storage.lastSlotStackSize);
+            return new StorageSlot(c, i, -1);
+        });
+        
+        parent.add(inv);
+        inv.setChanged();
+        
+        if (size.sort)
+            add(new GuiButton(this, "sort", x -> SORT.send(EndTag.INSTANCE)).setTranslate("gui.sort"));
+        
+        GuiPlayerInventoryGrid playerGrid = new GuiPlayerInventoryGrid(this);
+        if (!size.expanded)
+            playerGrid.setFixedX();
+        add(playerGrid);
+        
+    }
+    
+    public void inventoryChanged() {
+        if (!isClient())
+            get("storage", GuiInventoryGrid.class).setChanged();
+    }
+    
+    @Override
+    public void closed() {
+        super.closed();
+        if (storage != null && !isClient())
+            storage.closeContainer(this);
+    }
+    
+    public static class StorageSlot extends Slot {
+        
+        public int stackSize;
+        
+        public StorageSlot(Container container, int index, int stackSize) {
+            super(container, index, 0, 0);
+            this.stackSize = stackSize;
+        }
+        
+        @Override
+        public int getMaxStackSize() {
+            if (stackSize != -1)
+                return stackSize;
+            return super.getMaxStackSize();
+        }
+        
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return super.mayPlace(stack) && container.canPlaceItem(index, stack);
+        }
+        
+    }
+    
+    public static enum StorageSize {
+        
+        SMALL(9, 0, 0, false, false),
+        LARGE(13, 250, 250, true, false),
+        INFINITE(13, 250, 250, true, true);
+        
+        public final boolean scrollbox;
+        public final int cols;
+        public final boolean sort;
+        public final int guiWidth;
+        public final int guiHeight;
+        public final boolean expanded;
+        
+        StorageSize(int cols, int guiWidth, int guiHeight, boolean sort, boolean scrollbox) {
+            this.cols = cols;
+            this.guiWidth = guiWidth;
+            this.guiHeight = guiHeight;
+            this.scrollbox = scrollbox;
+            this.sort = sort;
+            this.expanded = guiWidth > 0;
+        }
+        
+        public static StorageSize getSizeFromInventory(Container inventory) {
+            if (inventory.getContainerSize() <= 27)
+                return StorageSize.SMALL;
+            else if (inventory.getContainerSize() <= 117)
+                return LARGE;
+            return StorageSize.INFINITE;
+        }
+        
+    }
+    
+}

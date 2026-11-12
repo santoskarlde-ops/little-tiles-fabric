@@ -1,0 +1,28 @@
+{
+    "required": true,
+    "package": "team.creative.littletiles.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "common.entity.EntityAccessor",
+        "common.level.BlockBehaviourAccessor",
+        "server.level.MinecraftServerAccessor",
+        "server.level.ChunkMapAccessor",
+        "server.network.ServerGamePacketListenerImplAccessor",
+        "common.recipe.ShapedRecipeAccessor",
+        "common.recipe.ShapelessRecipeAccessor",
+        "common.entity.PlayerMiningSpeedMixin",
+        "common.entity.ItemEntityPickupMixin"
+    ],
+    "client": [
+        "client.MouseHandlerScrollMixin",
+        "client.render.CameraFovMixin",
+        "client.render.GameRendererFrameMixin",
+        "client.render.LevelExtractorOverlayMixin",
+        "client.render.ParticleEngineResourcesAccessor",
+        "client.render.ParticleResourcesAccessor",
+        "client.MultiPlayerGameModeAccessor",
+        "client.network.ClientPacketListenerAccessor",
+        "client.level.ClientChunkCacheAccessor"
+    ],
+    "minVersion": "0.8"
+}

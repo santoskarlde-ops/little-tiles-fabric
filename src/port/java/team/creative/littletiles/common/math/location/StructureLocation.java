@@ -1,0 +1,92 @@
+package team.creative.littletiles.common.math.location;
+
+import java.util.Arrays;
+import java.util.UUID;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import team.creative.creativecore.common.level.ISubLevel;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.common.action.exception.LittleActionException;
+import team.creative.littletiles.common.block.entity.BETiles;
+import team.creative.littletiles.common.block.little.tile.parent.IStructureParentCollection;
+import team.creative.littletiles.common.entity.LittleEntity;
+import team.creative.littletiles.common.structure.LittleStructure;
+import team.creative.littletiles.common.structure.exception.MissingAnimationException;
+
+public class StructureLocation {
+    
+    public final BlockPos pos;
+    public final int index;
+    public final UUID levelUUID;
+    
+    public StructureLocation(BlockPos pos, int index, UUID world) {
+        this.pos = pos;
+        this.index = index;
+        this.levelUUID = world;
+    }
+    
+    public StructureLocation(Level level, BlockPos pos, int index) {
+        this.pos = pos;
+        this.index = index;
+        if (level instanceof ISubLevel sub)
+            this.levelUUID = sub.getHolder().getUUID();
+        else
+            this.levelUUID = null;
+    }
+    
+    public StructureLocation(LittleStructure structure) {
+        this(structure.getStructureLevel(), structure.getStructurePos(), structure.getIndex());
+    }
+    
+    public StructureLocation(CompoundTag nbt) {
+        int[] posArray = nbt.getIntArray("pos").orElse(new int[0]);
+        if (posArray.length != 3)
+            throw new IllegalArgumentException("Invalid pos array length " + Arrays.toString(posArray));
+        
+        pos = new BlockPos(posArray[0], posArray[1], posArray[2]);
+        index = nbt.getInt("index").orElse(0);
+        if (nbt.contains("world"))
+            levelUUID = UUID.fromString(nbt.getString("world").orElse(""));
+        else
+            levelUUID = null;
+    }
+    
+    public CompoundTag write(CompoundTag nbt) {
+        nbt.putIntArray("pos", new int[] { pos.getX(), pos.getY(), pos.getZ() });
+        nbt.putInt("index", index);
+        if (levelUUID != null)
+            nbt.putString("world", levelUUID.toString());
+        return nbt;
+    }
+    
+    public BETiles findBE(LevelAccessor level) throws LittleActionException {
+        if (levelUUID != null) {
+            LittleEntity entity = LittleTiles.ANIMATION_HANDLERS.find(level.isClientSide(), levelUUID);
+            if (entity == null)
+                throw new MissingAnimationException(levelUUID);
+            
+            level = entity.getSubLevel();
+        }
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof BETiles tiles)
+            return tiles;
+        
+        throw new LittleActionException.BlockEntityNotFoundException();
+    }
+    
+    public LittleStructure find(LevelAccessor level) throws LittleActionException {
+        IStructureParentCollection parent = findBE(level).getStructure(index);
+        if (parent != null)
+            return parent.getStructure();
+        throw new LittleActionException.StructureNotFoundException();
+    }
+    
+    @Override
+    public String toString() {
+        return levelUUID + ":" + pos.getX() + "," + pos.getY() + "," + pos.getZ() + "," + index;
+    }
+}

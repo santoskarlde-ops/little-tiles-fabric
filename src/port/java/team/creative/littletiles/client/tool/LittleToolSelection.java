@@ -1,0 +1,278 @@
+package team.creative.littletiles.client.tool;
+
+import org.joml.Matrix4fStack;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.PoseStack;
+
+import net.minecraft.client.KeyMapping;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import team.creative.creativecore.common.util.math.box.ABB;
+import team.creative.creativecore.common.util.math.vec.Vec3f;
+import team.creative.littletiles.client.render.LineNormals;
+import team.creative.creativecore.common.util.mc.ColorUtils;
+import team.creative.littletiles.LittleTiles;
+import team.creative.littletiles.api.common.tool.ILittleSelector;
+import team.creative.littletiles.client.render.mc.MeshDataExtender;
+import team.creative.littletiles.client.render.overlay.PreviewRenderer;
+import team.creative.littletiles.common.action.source.LittleActionSource;
+import team.creative.littletiles.common.item.component.SelectionComponent;
+import team.creative.littletiles.common.level.context.ILittleLevelContext;
+import team.creative.littletiles.common.packet.item.SelectionModePacket;
+
+public class LittleToolSelection extends LittleTool {
+    
+    private final ILittleSelector selector;
+    private SelectionComponent cachedSelection;
+    private SelectionRenderQueue renderQueue;
+    private SelectionRenderResult lineCache;
+    private SelectionRenderResult boxCache;
+    
+    public LittleToolSelection(ItemStack stack) {
+        super(stack);
+        this.selector = (ILittleSelector) stack.getItem();
+    }
+    
+    private void build(PreviewRenderer renderer) {
+        if (!selector.hasSelection(stack))
+            return;
+        
+        var selection = selector.getSelection(stack);
+        if (selection.equals(cachedSelection))
+            return;
+        
+        cachedSelection = selection;
+        SelectionRenderQueue queue = new SelectionRenderQueue(renderer);
+        cachedSelection.mode.buildRender(renderer.level(), stack, selector.getSelection(stack), queue);
+        renderQueue = queue;
+        lineCache = queue.build(true);
+        boxCache = queue.build(false);
+    }
+    
+    @Override
+    public boolean onRightClick(PreviewRenderer renderer, Level level, BlockHitResult result) {
+        if (result == null || !selector.hasSelection(stack))
+            return false;
+        
+        var selection = selector.getSelection(stack);
+        var component = selection.mode.rightClick((LittleActionSource) renderer.player(), stack, selection, renderer.blockHitContext(), selector.getSelectorGrid(renderer.player(),
+            stack), result, renderer.selectFocused(result), renderer.isUsingSecondMode());
+        if (component != null)
+            LittleTiles.NETWORK.sendToServer(new SelectionModePacket(component));
+        return true;
+    }
+    
+    @Override
+    public boolean onLeftClick(PreviewRenderer renderer, Level level, BlockHitResult result) {
+        if (result == null)
+            return false;
+        
+        var selection = selector.getSelection(stack);
+        var component = selection.mode.leftClick((LittleActionSource) renderer.player(), stack, selection, renderer.blockHitContext(), selector.getSelectorGrid(renderer.player(),
+            stack), result, renderer.selectFocused(result), renderer.isUsingSecondMode());
+        if (component != null)
+            LittleTiles.NETWORK.sendToServer(new SelectionModePacket(component));
+        return true;
+    }
+    
+    @Override
+    public boolean toolKeyPressed(PreviewRenderer renderer, KeyMapping key) {
+        var selection = selector.getSelection(stack);
+        var component = selection.mode.keyPressed((LittleActionSource) renderer.player(), stack, selection, selector.getSelectorGrid(renderer.player(), stack), renderer
+                .isUsingSecondMode(), key);
+        if (component != null) {
+            LittleTiles.NETWORK.sendToServer(new SelectionModePacket(component));
+            return true;
+        }
+        return false;
+    }
+    
+    @Override
+    protected void tickInternal(PreviewRenderer renderer) {
+        if (cachedSelection == null)
+            return;
+        
+        cachedSelection.mode.tick((LittleActionSource) renderer.player(), renderer.level(), stack, cachedSelection, this);
+    }
+    
+    public SelectionRenderResult getRenderResult(boolean lines) {
+        return lines ? lineCache : boxCache;
+    }
+    
+    @Override
+    protected void renderInternal(PreviewRenderer renderer, PoseStack pose, Vec3 cam, boolean lines) {
+        if (!selector.hasSelection(stack))
+            return;
+        var sel = selector.getSelection(stack);
+        if (cachedSelection == null || !cachedSelection.equals(sel))
+            build(renderer);
+        
+        if (cachedSelection == null)
+            return;
+        
+        var result = getRenderResult(lines);
+        if (result == null || result.data == null)
+            return;
+        
+        var matrix = RenderSystem.getModelViewStack();
+        matrix.pushMatrix();
+        if (lines)
+            renderer.setupPreviewRendererLines(1, 1, 1, 0.4F, (float) LittleTiles.CONFIG.rendering.previewLineThickness);
+        else
+            renderer.setupPreviewRenderer(lines);
+        
+        renderQueue.transform(matrix, cam, renderer.partialTickTime());
+        RenderSystem.applyModelViewMatrix();
+        BufferUploader.drawWithShader(result.data);
+        matrix.popMatrix();
+        RenderSystem.applyModelViewMatrix();
+        
+        if (cachedSelection.mode.hasRenderTick(stack, cachedSelection)) {
+            pose.pushPose();
+            renderQueue.transform(pose, cam, renderer.partialTickTime());
+            cachedSelection.mode.renderTick(renderer, (LittleActionSource) renderer.player(), renderer.level(), stack, cachedSelection, pose, lines);
+            pose.popPose();
+        }
+        
+        RenderSystem.setShaderColor(1, 1, 1, 1);
+    }
+    
+    @Override
+    public void remove() {
+        super.remove();
+        if (lineCache != null)
+            lineCache.close();
+        lineCache = null;
+        if (boxCache != null)
+            boxCache.close();
+        boxCache = null;
+        
+        cachedSelection = null;
+        renderQueue = null;
+    }
+    
+    public class SelectionRenderQueue {
+        
+        private ByteBufferBuilder lineBuffer;
+        private BufferBuilder lineBuilder;
+        private ByteBufferBuilder boxBuffer;
+        private BufferBuilder boxBuilder;
+        
+        private BlockPos origin;
+        private ILittleLevelContext context;
+        
+        public final PreviewRenderer renderer;
+        
+        public SelectionRenderQueue(PreviewRenderer renderer) {
+            this.renderer = renderer;
+        }
+        
+        protected void checkOrigin() {
+            if (origin == null)
+                throw new RuntimeException("First origin needs to be set");
+        }
+        
+        public void setOrigin(BlockPos pos) {
+            origin = pos;
+        }
+        
+        public void setContext(ILittleLevelContext context) {
+            this.context = context;
+        }
+        
+        public BufferBuilder getBuilder(boolean line) {
+            if (line) {
+                if (lineBuffer == null) {
+                    lineBuffer = renderer.createBuffer();
+                    lineBuilder = renderer.createBuilder(lineBuffer, line);
+                }
+                return lineBuilder;
+            }
+            
+            if (boxBuffer == null) {
+                boxBuffer = renderer.createBuffer();
+                boxBuilder = renderer.createBuilder(boxBuffer, line);
+            }
+            return boxBuilder;
+        }
+        
+        public void addBox(ABB box, boolean line) {
+            addBox(box, line, -1);
+        }
+        
+        public void addBox(ABB box, boolean line, int color) {
+            addBox(box, line, color, 255);
+        }
+        
+        public void addBox(ABB box, boolean line, int color, int alpha) {
+            checkOrigin();
+            box.move(-origin.getX(), -origin.getY(), -origin.getZ());
+            var b = box.toRenderBox();
+            b.color = color;
+            renderer.buildBox(PreviewRenderer.EMPTY, b, getBuilder(line), alpha, line);
+        }
+        
+        public void addLine(Vec3 start, Vec3 end, int color) {
+            checkOrigin();
+            start.subtract(origin.getX(), origin.getY(), origin.getZ());
+            end.subtract(origin.getX(), origin.getY(), origin.getZ());
+            int red = ColorUtils.red(color);
+            int green = ColorUtils.green(color);
+            int blue = ColorUtils.blue(color);
+            int alpha = ColorUtils.alpha(color);
+            Vec3f normal = new Vec3f();
+            var builder = getBuilder(true);
+            LineNormals.set(normal, (float) start.x, (float) start.y, (float) start.z, (float) end.x, (float) end.y, (float) end.z);
+            builder.addVertex(PreviewRenderer.EMPTY.last().pose(), (float) start.x, (float) start.y, (float) start.z).setColor(red, green, blue, alpha).setNormal(
+                PreviewRenderer.EMPTY.last(), normal.x, normal.y, normal.z);
+            builder.addVertex(PreviewRenderer.EMPTY.last().pose(), (float) end.x, (float) end.y, (float) end.z).setColor(red, green, blue, alpha).setNormal(PreviewRenderer.EMPTY
+                    .last(), normal.x, normal.y, normal.z);
+        }
+        
+        public SelectionRenderResult build(boolean lines) {
+            if (lines) {
+                if (lineBuffer == null)
+                    return null;
+                var data = lineBuilder.build();
+                ((MeshDataExtender) data).keepAlive(true);
+                return new SelectionRenderResult(lineBuffer, data);
+            }
+            if (boxBuffer == null)
+                return null;
+            var data = boxBuilder.build();
+            ((MeshDataExtender) data).keepAlive(true);
+            return new SelectionRenderResult(boxBuffer, data);
+        }
+        
+        public void transform(Matrix4fStack matrix, Vec3 cam, float partialTicks) {
+            if (context != null)
+                context.transformMatrix(matrix, origin.getX(), origin.getY(), origin.getZ(), cam, partialTicks);
+        }
+        
+        public void transform(PoseStack pose, Vec3 cam, float partialTicks) {
+            if (context != null)
+                context.transformPose(pose, origin.getX(), origin.getY(), origin.getZ(), cam, partialTicks);
+        }
+    }
+    
+    public static record SelectionRenderResult(ByteBufferBuilder buffer, MeshData data) {
+        
+        public void close() {
+            if (data instanceof MeshDataExtender m) {
+                m.keepAlive(false);
+                data.close();
+            }
+            if (buffer != null)
+                buffer.close();
+        }
+    }
+    
+}

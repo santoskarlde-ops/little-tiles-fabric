@@ -1,0 +1,44 @@
+{
+    "parent": "item/generated",
+    "textures": {
+        "layer0": "littletiles:item/magenta_0"
+    },
+    "overrides": [
+        {
+            "predicate": {
+                "littletiles:filled": 0
+            },
+            "model": "littletiles:item/bottle_magenta0"
+        },
+        {
+            "predicate": {
+                "littletiles:filled": 0.1667
+            },
+            "model": "littletiles:item/bottle_magenta1"
+        },
+        {
+            "predicate": {
+                "littletiles:filled": 0.3333
+            },
+            "model": "littletiles:item/bottle_magenta2"
+        },
+        {
+            "predicate": {
+                "littletiles:filled": 0.5
+            },
+            "model": "littletiles:item/bottle_magenta3"
+        },
+        {
+            "predicate": {
+                "littletiles:filled": 0.6667
+            },
+            "model": "littletiles:item/bottle_magenta4"
+        },
+        {
+            "predicate": {
+                "littletiles:filled": 0.8333
+            },
+            "model": "littletiles:item/bottle_magenta5"
+        }
+    ]
+}

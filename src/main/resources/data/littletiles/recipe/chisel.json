@@ -1,0 +1,20 @@
+{
+    "result": {
+        "id": "littletiles:chisel"
+    },
+    "category": "equipment",
+    "pattern": [
+        "X",
+        "X",
+        "L"
+    ],
+    "type": "minecraft:crafting_shaped",
+    "key": {
+        "X": {
+            "item": "minecraft:iron_ingot"
+        },
+        "L": {
+            "item": "minecraft:lapis_lazuli"
+        }
+    }
+}

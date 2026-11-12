@@ -1,0 +1,64 @@
+package team.creative.littletiles.common.gui.premade;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.Container;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.item.ItemStack;
+import team.creative.creativecore.common.gui.Align;
+import team.creative.creativecore.common.gui.GuiLayer;
+import team.creative.creativecore.common.gui.GuiParent;
+import team.creative.creativecore.common.gui.control.collection.GuiComboBox;
+import team.creative.creativecore.common.gui.control.inventory.GuiInventoryGrid;
+import team.creative.creativecore.common.gui.control.inventory.GuiPlayerInventoryGrid;
+import team.creative.creativecore.common.gui.control.simple.GuiButton;
+import team.creative.creativecore.common.gui.control.simple.GuiTextfield;
+import team.creative.creativecore.common.gui.flow.GuiFlow;
+import team.creative.creativecore.common.util.mc.PlayerUtils;
+import team.creative.creativecore.common.util.text.TextMapBuilder;
+import team.creative.littletiles.api.common.tool.ILittlePlacer;
+import team.creative.littletiles.client.export.LittleExportType;
+
+public class GuiExport extends GuiLayer {
+    
+    public GuiTextfield textfield;
+    public Container exportSlot = new SimpleContainer(1);
+    
+    public GuiExport(boolean client) {
+        super(client, "export");
+        this.setFlow(GuiFlow.STACK_Y);
+        this.setAlign(Align.STRETCH);
+    }
+    
+    @Override
+    public void create() {
+        add(new GuiInventoryGrid(this, "export", exportSlot).addListener(x -> {
+            ItemStack stack = exportSlot.getItem(0);
+            if (!stack.isEmpty() && stack.getItem() instanceof ILittlePlacer p && p.hasTiles(stack))
+                textfield.setText(((GuiComboBox<LittleExportType>) get("type")).selected().export(stack));
+            else
+                textfield.setText("");
+        }));
+        
+        add(new GuiComboBox<LittleExportType>(this, "type", new TextMapBuilder<LittleExportType>().addEntrySet(LittleExportType.REGISTRY.entrySet(), x -> Component.translatable(
+            "gui.export." + x.getKey()))));
+        
+        GuiParent row = new GuiParent(this, GuiFlow.STACK_X);
+        add(row);
+        textfield = new GuiTextfield(this, "export");
+        textfield.setMaxStringLength(Integer.MAX_VALUE);
+        row.add(textfield);
+        
+        if (isClient())
+            row.add(new GuiButton(row, "Copy", x -> Minecraft.getInstance().keyboardHandler.setClipboard(textfield.getText())).setTranslate("gui.copy"));
+        
+        add(new GuiPlayerInventoryGrid(this).setFixedX());
+        
+    }
+    
+    @Override
+    public void closed() {
+        super.closed();
+        PlayerUtils.addOrDrop(getPlayer(), exportSlot);
+    }
+}

@@ -1,0 +1,307 @@
+package team.creative.littletiles.common.entity.animation;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
+import net.neoforged.api.distmarker.Dist;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import team.creative.creativecore.common.network.CreativePacket;
+import team.creative.creativecore.common.util.math.vec.Vec3d;
+import team.creative.littletiles.LittleTilesRegistry;
+import team.creative.littletiles.client.render.entity.LittleAnimationRenderManager;
+import team.creative.littletiles.client.render.entity.LittleEntityRenderManager;
+import team.creative.littletiles.common.action.exception.LittleActionException;
+import team.creative.littletiles.common.block.entity.BETiles;
+import team.creative.littletiles.common.block.mc.BlockTile;
+import team.creative.littletiles.common.entity.LittleEntity;
+import team.creative.littletiles.common.level.little.LittleSubLevel;
+import team.creative.littletiles.common.math.location.LocalStructureLocation;
+import team.creative.littletiles.common.packet.entity.animation.LittleAnimationInitPacket;
+import team.creative.littletiles.common.packet.entity.animation.LittleBlockChange;
+import team.creative.littletiles.common.placement.Placement;
+import team.creative.littletiles.common.placement.PlacementResult;
+import team.creative.littletiles.common.structure.LittleStructure;
+import team.creative.littletiles.common.structure.attribute.LittleStructureAttribute;
+import team.creative.littletiles.common.structure.connection.children.StructureChildConnection;
+import team.creative.littletiles.common.structure.connection.direct.StructureConnection;
+import team.creative.littletiles.common.structure.exception.CorruptedConnectionException;
+import team.creative.littletiles.common.structure.exception.NotYetConnectedException;
+import team.creative.littletiles.common.structure.relative.StructureAbsolute;
+
+public class LittleAnimationEntity extends LittleEntity<LittleAnimationEntityPhysic> {
+    
+    public static void loadBE(LevelAccessor level, CompoundTag nbt, boolean update) {
+        BlockState state = BlockTile.getState(nbt.getBoolean("ticking").orElse(false), nbt.getBoolean("rendered").orElse(false));
+        int x = nbt.getIntOr("x", 0);
+        int z = nbt.getIntOr("z", 0);
+        BlockPos pos = BlockEntity.getPosFromTag(new ChunkPos(x >> 4, z >> 4), nbt);
+        level.setBlock(pos, state, 0);
+        
+        BlockEntity entity = level.getBlockEntity(pos);
+        if (entity instanceof BETiles be) {
+            if (be.isClient()) {
+                be.handleUpdate(nbt, !update);
+                if (!update)
+                    be.render.tilesChanged();
+            } else {
+                be.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), nbt));
+                if (update)
+                    be.updateTiles(false, true);
+            }
+            be.setLevel((Level) level);
+        }
+    }
+    
+    public static CompoundTag saveBE(BETiles tiles) {
+        CompoundTag nbt = tiles.saveWithFullMetadata(tiles.getLevel().registryAccess());
+        nbt.putBoolean("ticking", tiles.isTicking());
+        nbt.putBoolean("rendered", tiles.isRendered());
+        return nbt;
+    }
+    
+    private StructureAbsolute center;
+    private StructureConnection structure;
+    private boolean collisionListener;
+    
+    public LittleAnimationEntity(EntityType<?> type, Level level) {
+        super(type, level);
+    }
+    
+    public LittleAnimationEntity(Level level, LittleAnimationLevel subLevel, StructureAbsolute center, Placement placement) throws LittleActionException {
+        super(LittleTilesRegistry.ENTITY_ANIMATION.get(), level, subLevel, center.rotationCenter);
+        setCenter(center);
+        beforeInitalPlacement();
+        PlacementResult result = placement.place();
+        if (result == null)
+            throw new LittleActionException("Could not be placed");
+        this.structure = new StructureConnection(subLevel, new LocalStructureLocation(result.parentStructure));
+        physic.tick();
+        physic.updateBoundingBox();
+        recalculateCollisionListener();
+    }
+    
+    protected void beforeInitalPlacement() {
+        if (level().isClientSide())
+            getSubLevel().renderManager = LittleAnimationRenderManager.of(this);
+    }
+    
+    @Override
+    protected LittleSubLevel createLevel() {
+        return new LittleAnimationLevel(level());
+    }
+    
+    @Override
+    public LittleAnimationLevel getSubLevel() {
+        return (LittleAnimationLevel) super.getSubLevel();
+    }
+    
+    public void setCenter(StructureAbsolute center) {
+        this.center = center;
+        if (getOrigin() != null)
+            getOrigin().setCenter(center.rotationCenter);
+        originReplaced();
+    }
+    
+    public void setParentLevel(Level subLevel) {
+        setLevel(subLevel);
+        getSubLevel().setParent(subLevel);
+        getSubLevel().setOrigin(center.rotationCenter);
+        if (getOrigin() != null)
+            getSubLevel().getOrigin().set(getOrigin());
+        setOrigin(this.subLevel.getOrigin());
+    }
+    
+    public StructureAbsolute getCenter() {
+        return center;
+    }
+    
+    public boolean is(LittleStructure structure) {
+        return this.structure.is(structure);
+    }
+    
+    public LittleStructure getStructure() throws CorruptedConnectionException, NotYetConnectedException {
+        return structure.getStructure();
+    }
+    
+    public LittleStructure getStructureOrNull() {
+        return structure.getStructureOrNull();
+    }
+    
+    @Override
+    public boolean checkEntityInside(Entity entity) {
+        return collisionListener;
+    }
+    
+    protected void recalculateCollisionListener() {
+        try {
+            collisionListener = hasCollisionListener(getStructure());
+        } catch (CorruptedConnectionException | NotYetConnectedException e) {
+            collisionListener = false;
+        }
+    }
+    
+    private boolean hasCollisionListener(LittleStructure structure) {
+        if (structure == null)
+            return false;
+        
+        if (LittleStructureAttribute.collisionListener(structure.getAttribute()))
+            return true;
+        for (StructureChildConnection c : structure.children.all())
+            try {
+                if (hasCollisionListener(c.getStructure()))
+                    return true;
+            } catch (CorruptedConnectionException | NotYetConnectedException e) {}
+        return false;
+        
+    }
+    
+    public void applyChanges(Iterable<LittleBlockChange> changes) {
+        for (LittleBlockChange change : changes)
+            if (change.isEmpty())
+                subLevel.removeBlock(change.pos(), true);
+            else
+                loadBE(subLevel, change.block(), true);
+    }
+    
+    protected void loadBlocks(ValueInput input) {
+        LittleAnimationLevel level = getSubLevel();
+        for (CompoundTag block : input.listOrEmpty("b", CompoundTag.CODEC))
+            loadBE(level, block, false);
+    }
+    
+    protected void saveBlocks(ValueOutput output) {
+        ValueOutput.TypedOutputList<CompoundTag> blocks = output.list("b", CompoundTag.CODEC);
+        for (BETiles block : getSubLevel())
+            blocks.add(saveBE(block));
+        if (blocks.isEmpty())
+            output.discard("b");
+    }
+    
+    @Override
+    protected Vec3d loadCenter(ValueInput input) {
+        this.center = new StructureAbsolute("c", input);
+        return center.rotationCenter;
+    }
+    
+    @Override
+    public void loadEntity(ValueInput input) {
+        setCenter(center); // center half way loaded due to loadCenter called before
+        loadBlocks(input);
+        
+        this.structure = new StructureConnection((Level) subLevel, input.read("s", CompoundTag.CODEC).orElseGet(CompoundTag::new));
+        recalculateCollisionListener();
+    }
+    
+    @Override
+    public void saveEntity(ValueOutput output) {
+        output.store("s", CompoundTag.CODEC, structure.write());
+        center.save("c", output);
+        saveBlocks(output);
+    }
+    
+    @Override
+    public CreativePacket initClientPacket() {
+        return new LittleAnimationInitPacket(this);
+    }
+    
+    public CompoundTag saveExtraClientData() {
+        CompoundTag nbt = new CompoundTag();
+        nbt.put("physic", physic.save());
+        TagValueOutput output = TagValueOutput.createWithoutContext(ProblemReporter.DISCARDING);
+        saveBlocks(output);
+        nbt.merge(output.buildResult());
+        nbt.put("st", structure.write());
+        return nbt;
+    }
+    
+    @Override
+    public void prepareChangeLevel(Level oldLevel, Level newLevel) {
+        setParentLevel(newLevel);
+        try {
+            StructureChildConnection parent = getStructure().getParent();
+            if (parent != null)
+                parent.clearCache();
+        } catch (CorruptedConnectionException | NotYetConnectedException e) {}
+    }
+    
+    @Environment(EnvType.CLIENT)
+    public void initSubLevelClient(StructureAbsolute absolute, CompoundTag extraData) {
+        if (changedLevel) {
+            changedLevel = false;
+            return;
+        }
+        setSubLevel(new LittleAnimationLevel(level()), absolute.rotationCenter);
+        setCenter(absolute);
+        ((LittleAnimationLevel) subLevel).renderManager = LittleAnimationRenderManager.of(this);
+        loadBlocks(TagValueInput.create(ProblemReporter.DISCARDING, level().registryAccess(), extraData));
+        physic.load(extraData.getCompound("physic").orElse(new CompoundTag()));
+        this.structure = new StructureConnection((Level) subLevel, extraData.getCompound("st").orElse(new CompoundTag()));
+        physic.updateBoundingBox();
+    }
+    
+    @Override
+    public void performTick() {
+        super.performTick();
+        if (!level().isClientSide() && getSubLevel().isEmpty())
+            destroyAnimation();
+    }
+    
+    @Override
+    public void internalTick() {}
+    
+    @Override
+    public void initialTick() {
+        getSubLevel().initialTick();
+    }
+    
+    @Override
+    protected LittleAnimationEntityPhysic createPhysic() {
+        return new LittleAnimationEntityPhysic(this);
+    }
+    
+    @Override
+    @Environment(EnvType.CLIENT)
+    public LittleEntityRenderManager getRenderManager() {
+        return ((LittleAnimationLevel) subLevel).renderManager;
+    }
+    
+    @Override
+    public void syncMovement() {}
+    
+    @Override
+    public void startTracking(ServerPlayer player) {
+        getSubLevel().entityCallback.addTrackingPlayer(player);
+    }
+    
+    @Override
+    public void stopTracking(ServerPlayer player) {
+        getSubLevel().entityCallback.removeTrackingPlayer(player);
+    }
+    
+    public void clearTrackingChanges() {
+        getSubLevel().clearTrackingChanges();
+    }
+    
+    @Override
+    public boolean noClip() {
+        try {
+            return getStructure() instanceof LittleStructure s && s.entityNoClip();
+        } catch (CorruptedConnectionException | NotYetConnectedException e) {
+            return false;
+        }
+    }
+}
