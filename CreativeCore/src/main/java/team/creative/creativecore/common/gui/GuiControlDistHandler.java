@@ -1,0 +1,56 @@
+package team.creative.creativecore.common.gui;
+
+import java.util.List;
+
+import net.minecraft.core.Holder;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvent;
+import team.creative.creativecore.common.gui.flow.GuiSizeRule;
+import team.creative.creativecore.common.gui.style.ControlFormatting;
+import team.creative.creativecore.common.gui.style.ControlFormattingFlexible;
+
+public interface GuiControlDistHandler {
+    
+    public void setVisible(boolean visible);
+    
+    public void setFixed();
+    
+    public void setFixedX();
+    
+    public void setFixedY();
+    
+    public void setExpandable();
+    
+    public void setExpandableX();
+    
+    public void setExpandableY();
+    
+    public boolean isExpandableX();
+    
+    public boolean isExpandableY();
+    
+    public void setDim(int width, int height);
+    
+    public void setDim(GuiSizeRule dim);
+    
+    public void setEnabled(boolean enabled);
+    
+    public void setTooltip(List<Component> tooltip);
+    
+    public void setTooltip(String translate);
+    
+    public void removeFormatting();
+    
+    public void setFormatting(ControlFormatting formatting);
+    
+    public ControlFormattingFlexible setCustomFormatting();
+    
+    public void playSound(Holder.Reference<SoundEvent> sound);
+    
+    public void playSound(SoundEvent event);
+    
+    public void playSound(SoundEvent event, float volume, float pitch);
+    
+    public void playSound(Holder.Reference<SoundEvent> event, float volume, float pitch);
+    
+}

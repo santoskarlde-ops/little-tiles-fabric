@@ -1,0 +1,70 @@
+package team.creative.creativecore.common.gui.integration;
+
+import java.util.List;
+
+import net.minecraft.core.HolderLookup;
+import team.creative.creativecore.common.gui.GuiControl;
+import team.creative.creativecore.common.gui.GuiLayer;
+import team.creative.creativecore.common.gui.IGuiParent;
+import team.creative.creativecore.common.gui.event.GuiEvent;
+import team.creative.creativecore.common.network.CreativePacket;
+import team.creative.creativecore.common.util.math.geo.Rect;
+
+public interface IGuiIntegratedParent extends IGuiParent {
+    
+    public HolderLookup.Provider provider();
+    
+    List<GuiLayer> getLayers();
+    
+    GuiLayer getTopLayer();
+    
+    default boolean isOpen(Class<? extends GuiLayer> clazz) {
+        for (GuiLayer layer : getLayers())
+            if (clazz.isInstance(layer))
+                return true;
+        return false;
+    }
+    
+    @Override
+    default void raiseEvent(GuiEvent event) {}
+    
+    @Override
+    default void reflow() {}
+    
+    void openLayer(GuiLayer layer);
+    
+    void closeLayer(int layer);
+    
+    @Override
+    default boolean isParent(IGuiParent parent) {
+        return parent == this;
+    }
+    
+    @Override
+    default boolean hasGui() {
+        return true;
+    }
+    
+    default GuiControl get(String control) {
+        for (GuiLayer layer : getLayers())
+            if (control.startsWith(layer.getNestedName()))
+                if (control.equals(layer.getNestedName()))
+                    return layer;
+                else
+                    return layer.get(control.substring(layer.getNestedName().length() + 1));
+        return null;
+    }
+    
+    @Override
+    default Rect toLayerRect(GuiControl control, Rect rect) {
+        return rect;
+    }
+    
+    @Override
+    public default IGuiIntegratedParent getIntegratedParent() {
+        return this;
+    }
+    
+    public void send(CreativePacket message);
+    
+}

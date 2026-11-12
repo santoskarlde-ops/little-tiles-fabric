@@ -1,0 +1,486 @@
+2.14.24
+Fixed could not load default gui style error during startup
+Fixed not clearing loaded gui styles if default style fails to load
+Fixed not having a reload listener for gui styles on fabric
+
+
+2.14.23
+Fixed consumables turning into empty item stacks (by FreezePhoenix)
+
+2.14.22
+Added client loader to support SOLOnion for fabric (by FreezePhoenix)
+Added common transaction handler (by FreezePhoenix)
+Fixed mouse scrolling not working in gui
+
+2.14.21
+Added CommonFancy loader (by FreezePhoenix)
+Preparations for SOLOnion to support fabric (by FreezePhoenix)
+
+2.14.20
+Updated to NeoForge 26.3.0.48-beta
+
+2.14.19
+Fixed wrong use of mouse buttons
+Fixed textfield not working
+Fixed slider right click moving scroll offset in textfield so that you cannot see the value
+Fixed double click not working
+Refactor mouseMoved method to simplify submenu handling (by FreezePhoenix)
+Initialize name before creating dist (by FreezePhoenix)
+Refactor keyPressed to use isEscape method (by FreezePhoenix)
+
+2.14.18
+Fixed set parent for control in addHover method missing (by FreezePhoenix)
+Fixed CompoundTag returns an optional for getString (by FreezePhoenix)
+Fixed mixin crash on fabric servers (by arnokeesman)
+
+2.14.17
+Added onItemToos to creative loader
+
+2.14.16
+Fixed crash when min max is configured wrong (min being larger than max)
+
+2.14.15
+Removed OnlyIn annotations added accidently by merge
+
+2.14.14
+Moved key config to forge (to fix issues on fabric)
+Fix: Remove hasBounds() check in VectorFan.generate() to resolve compact CTM slope render issue (by nickeh913678)
+Added forge and fabric method to CreativeLoader
+Added ICreativeRegistry interface for LocatedHandlerRegistry and NamedHandlerRegistry
+Renamed ICreativeRegistry to IConfigRegistry
+Fixed crash when playing sound config if the event does not exist
+Fixed some blocks not being rendered when they are colored translucent (blocks from rechiseled for example)
+Fixed crash when moving structures around in blueprint gui with child events
+Made GuiTree remember state of checkbox when toggling them
+Added contains to GuiParent
+Added register codec to NetworkFieldTypes
+Fixed rendering lines for render box not rendering block when color is white
+Added better functionality to support key controlled menu scrolling
+Added matche methods for KeyConfig which take keyCode
+Fixed checked items iteration for GuiTree
+Added keepOrder to GuiTree
+Added matchesPress to KeyConfig
+Added KeyConfig
+Added option to use ConfigHolderDynamic as a field to allow for custom creation of configurations within an existing configuration
+Added hasMinimumSpacing to GuiLayer
+Added time tracking for tests
+Added results information
+Added Tests
+Added vector fan cut min max test
+Reworked IntersectionHelper
+Added combine method to VectorFan
+
+
+2.14.13
+Fixed server startup crash on fabric side
+
+2.14.12
+Fixed startup crash on fabric side
+
+2.14.11
+Added contact information to fabric.mod.json
+Added grow to AlignedBox
+Added BlockHitResult as network type
+Added textColor to TextBuilder and made it remember the style of the previous component
+Fixed not being able to save & load itemstack component content
+Added getLeft and getRight to GuiLeftRightBox
+Fixed small typo in GuiLayer inventoriesToExtract()
+Fixed cyan color being incorrect
+
+2.14.10
+Added play button to sound config
+Fixed crash when dragging item in tree if there is just a single entry
+Fixed flow of controls not taking scale into account
+Added parseLong to textfield
+
+2.14.9
+Added centerX and centerY to GuiControlRect
+Fixed not being able to send nested lists via network
+Fixed not being able to send component via network
+Made permission group use a combobox instead of a textfield to specify usergroup
+Fixed not being able to scroll inside permission gui everywhere
+Fixed scrollbox not reseting to possible position when size changes
+Fixed usergroup configuration not working
+Added hex configuration to color picker
+Added inflate, deflate and renderLines method to ABB
+Fixed CreativeIngredient sometimes not being ready for config (when used externally)
+
+2.14.8
+Added asContent to InventoryUtils
+
+2.14.7
+Fixed client commands not working when connected to a server on fabric
+Fixed crash when opening gui on server side
+
+2.14.6
+Fixed incorrect equal check for classes that have implemented equals method
+Fixed color picker not displaying color in sliders
+Fixed BoxCorner.facingTo method causing troubles with slope shapes of littletiles
+
+2.14.5
+Fixed crash during startup due to invalid reflection for fabric
+
+2.14.4
+Fixed crash when using player selector dialog
+Fixed wrong iteration of controls on client side causing hover controls to not be clicked when being above another control
+Fixed extension being offset by a few pixels
+Fixed incorrect intersection check for vectors fans caused by angled line go over two edges exactly #2
+Fixed incorrect intersection check for vectors fans caused by angled line go over two edges exactly
+Fixed drop in gui not correctly interacting with every inventory
+Fixed extraction in gui not correctly interacting with every inventory
+Fixed slot drop with q not working correctly
+Removed color palette settings
+Added maxGuiScale config option
+Fixed config of CreativeCore not being registered
+Removed useStencil and useOptifineCompat config option
+Fixed slider textfield not working correctly
+Fixed rendering controls which have no visible rect on screen
+Added GuiLabelHover
+Added subtract to ColorUtils
+Fixed selecting combobox flexible after forced value not setting value before raising changed event
+Added better timeline channel unmodifiable key support
+Fixed container on client side not being able to calculate toScreentRect
+Fixed initialization of extensions not working properly
+Fixed displaying group in stack selector even though it is empty
+Fixed stack selector search bar not taking full width
+Fixed stack selector search not working
+Fixed slots hover effect not working correctly
+Fixed chaining changes endlessly in item select dialog
+Added notify parameter gui dist handlers to avoid change looping
+Fixed tooltip in gui causing crash
+Fixed limited matrix stack size causing crash with guis with many control parents
+Fixed scissor in gui api not working correctly causing multiple rendering issues
+
+2.14.3
+Reverted back to all packets being optional (might cause issues when connecting to server with creativecore installed, but enables connection to paper or spigot)
+
+2.14.2
+Fixed config handler not getting created early enough causing crash with AmbientSounds (fabric)
+
+2.14.1
+Fixed creataive gui graphics do not work properly
+
+2.14.0
+Removed use of OnlyIn entirely
+Reworked gui-api to have a designated system for client and server handling
+
+2.13.3
+Fixed holding item rendering offset
+Fixed rendering count of one when holding an item stack
+Fixes mod not being required on client side when it is installed on server side
+Refactor BoxCorner for constant-time lookup (Thanks to zmr-233)
+Added Argentine Spanish localization (Thanks to Texaliuz)
+
+2.13.2
+Fixed control formatting has disabled effect not being used
+Renamed MINIMUM_LAYER_SPACING to MINIMUM_OUTER_SPACING
+Removed all unnecessary forge classes
+Fixed tab content is not visible (Thanks to paring-chan)
+
+2.13.1
+Fixed not syncing configuration when open to lan in singleplayer (fabric)
+
+2.13.0
+Reworked GuiControl
+- Made Rect part of GuiControl
+- Removed GuiChildControl
+- Removed rect as parameter
+- Removed addControl and addHoverControl from GuiParent
+- Moved min, preferred and max methods for width and height from control to rect
+- Removed rect from standard renderContent function in GuiControl
+- Renamed package controls to control
+- Removed non generic variant of combobox, state button, tab
+Reworked NamedTree
+- Added first and valueEntries to NamedTree
+- Fixed folder force not working properly for nested paths in NamedTree
+Changed Config System
+- Added ConfigTypeRegistry which allows for type saving & loading with an automatically generated gui configuration (based on the config system)
+- Added ICreativeRegistry to allow for multiple config systems to have independent field predicates
+- Added hideFromGUI to CreativeConfig annotation
+- Added Int and Decimal Supplier annotation and classes to enable on the fly min and max configuration
+- Enabled custom type equals checker by default (for config systems)
+- Removed CreativeConfig annotation being available for classes
+Update `ru_ru.json` (thanks to mpustovoi)
+Added GuiExtensionCreator (reworked combobox, stack selector etc.)
+Added missing translation for true and false
+Added GuiComboBoxFlexible
+Added DataComponentPatch network field type
+Added float parameter variants to GuiRenderHelper
+Added new constructor to DisplayColor
+Added copy method sameDimensions to CompiledText
+Added different extension directions for GuiExtensionCreator
+Added CLICKABLE_NO_BORDER ControlFormatting
+Added new constructor for TextBuilder and an easy way to display a boolean
+Added set Vec3i to VectorUtils
+Added way to convert NBT to JSON back and forth
+Added gray and dark gray to ColorUtils
+Added VertexConsumer parameter for RenderBox and VectorFan
+Added IntMatrix3c and transform methods for Axis, Facing, BoxCorner, Rotation
+Fixed not syncing configuration when open to lan in singleplayer
+Fixed slider not loosing it's grabbed state when being disabled
+Fixed VectorFan white preview
+Renamed LevelAccesorFake to LevelAccessorFake
+
+2.12.36
+Fixed item pickup event not getting fired for ItemPhysic
+
+2.12.35
+Added Holder to network types
+
+2.12.34
+Fixed crash with reload listener on fabric
+
+2.12.33
+Added registerReloadListener and fixed crash with newest NeoForge version
+
+2.12.32
+Fixed gui not rendering correctly
+Updated to newer NeoForge version
+
+2.12.31
+Fixed not properly displaying error in packet
+
+2.12.30
+Fixed round precision causing troubles with LittleTiles placement
+
+2.12.29
+Added ChunkLayerMapList
+Removed unnecessary field from RenderBox
+Added clear to IndexedCollector
+Added requiresAdvancedEntityStep to BoxesVoxelShape
+
+2.12.28
+Added modelData as parameter for quad methods
+
+2.12.27
+Added FunctionNonNullIterator
+
+2.12.26
+Added better configuration for max string length for GuiTextfield
+
+2.12.25
+Fixed not being able to send and receive bundle packets
+Fixed crash when attempting to load unavailable item or block
+
+2.12.24
+Added NormalPlaneF isFacing check
+Added float variants of equals to Maths
+
+2.12.23
+Reworked stack ingredient (allow to select data components to be checked for)
+Added GuiCheckList
+Added getInnerControl to GuiLabeledControl
+Enhanced ingredient selection layout
+Added equals to Maths with epsilon parameter
+
+2.12.22
+Added better way for automated config equals checking
+Fixed permissions not saving
+Added TriPredicate
+
+2.12.21
+Fixed crash when adding an item in the config to a list of CreativeIngredient
+
+2.12.19
+Fixed fabric fireItemPickupPre hook not returning correct result
+
+2.12.18
+Fixed crash when using CreativeCore on a fabric server
+
+2.12.17
+Fixed a few more collision edge cases causing a crash
+
+2.12.16
+Added dist to @Mod annotation (shadowed from NeoForge)
+
+2.12.15
+Fixed LineBitSet results not being correct
+Fixed reset button translation not working correctly when using LittleTiles
+Fixed crash with certain types of generic configuration
+
+2.12.13
+Fixed values and keys iteration not working for TupleList
+
+2.12.12
+Fixed intersect2d of VectorFan not working in all cases
+
+2.12.11
+Fixed not being able to type in a minus when entering number into number textfield
+
+2.12.10
+Update es_es.json (Thanks to C4BR3R4)
+
+2.12.9
+Added CreativePlatformHooks
+
+2.12.8
+Fixed rendering of GuiScrollX scroll bar
+Added insert control before and after methods to GuiParent
+Added vanilla behavior of moving shift clicking stack inside players inventory
+Fixed another intersection edge case
+Fixed random crash when getting style
+
+2.12.7
+Potentially fixed occasional crash when loading GuiStyle at the same time from two different threads
+Fixed collision edge case where both boxes are exactly next to each other which cause the player to get stuck (Occured frequently to vanillas new and improved step up behavior)
+Fixed crash when using inventories in gui
+Fixed not displaying error when executing packet in log
+Significantly enhanced performance related to boxes-voxel-shapes when combining shapes
+Fixed not being able to send vanilla packets
+Added untrimmedContent to CompiledText
+Fixed VertexFormatUtils
+
+2.12.6
+Fixed error when searching for configuration
+Switched over to UTF_8 config file charset
+Added getType to CreativeNetwork
+Fixed NetworkTypes could only be a certain class
+
+2.12.5
+Excluded net.fabric package from forge file
+
+2.12.4
+Fixed not saving config entries inside array, list, toggelable correctly
+
+2.12.3
+Reworked ConfigKey system (Removed ConfigKeyCache)
+Fixed not loading holder inside list, array, namedlist, permission, etc. properly
+
+2.12.2
+Added class network field type
+Added missing CreativeNetwork send variants
+Fixed incorrect Pair.is method result
+
+2.12.1
+Fixed crash when reading enum config
+Added round to Maths
+Optimized performance when checking for block in SortingBlockList
+
+2.12.0
+Added SortingBlockList
+Added RegistryObjectListConfig
+Added RegistryTagConfig, RegistryTagListConfig
+Rework ConfigKey structure to add support for nested generics
+Fixed combobox and stack selector incorrect calculations whether it should open downwards or upwards
+Fixed config layer not closing after prompt
+Fixed not rendering itemstack and text correctly
+
+2.11.34
+Added getHolder() to RegistryObjectConfig
+
+2.11.33
+Fixed crash when using config gui in main menu
+
+2.11.32
+Fixed not being able to send empty itemstacks
+
+2.11.31
+Fixed fabric version not loading on server side
+
+2.11.30
+Added missing constructor to linear interpolation
+Added DebugTextRenderer
+Fixed guis overlapping with JEI overlay
+
+2.11.29
+Added getFriction to CreativeLoader
+
+2.11.28
+Fixed crash with newer NeoForge versions
+
+2.11.27
+Fixed packets not working properly
+
+2.11.26
+Fixed crash when table is empty
+Fixed GuiLayer not respecting setDim after initial constructor
+Fixed crash oauth
+SrRapero720: Implemented GuiIcon, GuiSeekBar and ValueFormatter + code cleanup and optimization
+
+2.11.25
+Added way to copy VecOrigin
+Added set Vec3 to Vec3d
+Added PlaneCache (reworked from port)
+Reworked CollisionCoordinator
+Fixed client sync gui wrong caption
+Fixed loading mixin on server side which is client side only (fabric)
+Fixed several issues related to calculating surrounding boxes of transformations
+Fixed obbs collision not working properly
+
+2.11.24
+Fixed vector fan not properly coping vectors when cutting it
+
+2.11.23
+Added addOrDrop to PlayerUtils
+
+2.11.22
+Fixed slot swap not working (removing item in slot)
+
+2.11.21
+Fixed weird lighting issues with embeddium
+
+2.11.20
+Added option to mob effect configuration to hide particles
+
+2.11.19
+Fixed CreativeCore networks not being optional
+Fixed issue with bundle packet
+Added GuiButtonContext
+Fixed display repeat getting stuck in rendering if width or height is a decimal number
+
+2.11.18
+Added compatibility with neoforge 20.4.80-beta
+Fixed crash with slot view on client side
+
+2.11.17
+Fixed issue with newer neoforge version
+
+2.11.16
+Added write and read int array to NetworkFieldTypes
+
+2.11.15
+Added GuiDuration control
+Fixed exception when gui creator does not return a gui layer to open
+
+2.11.14
+Added another constructor to creative baked quad
+Reworked iterators by adding interface which extends both Iterable and Iterator
+
+2.11.13
+Fixed inventory not sending slot update
+
+2.11.12
+Fixed calling init for layer before menu is created
+Fixed minWidth calculation of flow fit x
+Fixed saving of inventory not working
+
+2.11.11
+Added NamedClassBoundHandlerRegistry
+Added more helper methods to Facing
+Added GuiSyncLocal.sendAndExecute
+Added chinese translate (Thanks to ToryRegulus)
+Reworked GuiCounterDecimal
+Fixed GuiTabButton not being clickable
+Fixed rotation transform not working
+
+2.11.10
+Added log when exception occurs during the execution of a GuiSync
+Fixed not using slot.remove which caused some issues
+Fixed extracting slots with negative numbers which caused items to get lost
+Fixed continuously setting player inventory to changed, causing loss in performance and errors when closing gui
+Fixed several slot rendering issues
+Fixed player inventory wrong slot order
+
+2.11.9
+Added SpecialSoundInstance (ported getStream to fabric)
+Added ResourceUtils
+
+2.11.8
+Fixed crash when checking two registryobjects (used by solonion config)
+
+2.11.7
+Fixed crash with ListBox due to newly added canBeModified being null in some cases
+
+2.11.6
+Added epsilon for intersect2d method in VectorFan
+Fixed NormalPlaneD and NormalPlaneF not considering float point precision when checking if the intersection is valid
