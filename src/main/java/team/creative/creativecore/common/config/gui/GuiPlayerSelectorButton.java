@@ -1,0 +1,43 @@
+package team.creative.creativecore.common.config.gui;
+
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import team.creative.creativecore.common.gui.IGuiParent;
+import team.creative.creativecore.common.gui.control.simple.GuiButton;
+import team.creative.creativecore.common.gui.event.GuiControlChangedEvent;
+import team.creative.creativecore.common.gui.sync.GuiSyncGlobalLayer;
+import team.creative.creativecore.common.gui.sync.GuiSyncHolder;
+import team.creative.creativecore.common.util.player.PlayerSelector;
+
+public class GuiPlayerSelectorButton extends GuiButton {
+    
+    public static final GuiSyncGlobalLayer<PlayerSelectorDialog> PLAYER_SELECTOR = GuiSyncHolder.GLOBAL.layer("player_selector", (c, p, nbt) -> new PlayerSelectorDialog(c));
+    
+    private PlayerSelector info;
+    
+    public GuiPlayerSelectorButton(IGuiParent parent, String name, PlayerSelector info) {
+        super(parent, name, null);
+        setPressed(x -> {
+            PlayerSelectorDialog layer = PLAYER_SELECTOR.open(getIntegratedParent(), new CompoundTag());
+            layer.button = this;
+            layer.init();
+        });
+        setTitle(getLabelText(info));
+        this.info = info;
+    }
+    
+    public void set(PlayerSelector info) {
+        this.info = info;
+        setTitle((getLabelText(info)));
+        raiseEvent(new GuiControlChangedEvent(this));
+    }
+    
+    public static Component getLabelText(PlayerSelector value) {
+        return value.info();
+    }
+    
+    public PlayerSelector get() {
+        return info;
+    }
+    
+}

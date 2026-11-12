@@ -1,0 +1,42 @@
+plugins {
+    id "net.fabricmc.fabric-loom" version "${loom_version}"
+    id 'com.modrinth.minotaur' version '2.+'
+}
+
+group = "team.creative"
+
+repositories {
+	maven {
+		url = "https://api.modrinth.com/maven"
+	}
+	maven { url = 'https://maven.neoforged.net/releases' }
+}
+
+java.sourceSets {
+    main {
+        java {
+            srcDirs = ["src/main/java", "src/fabric/java"]
+        }
+        resources {
+            srcDirs = ["src/main/resources", "src/fabric/resources"]
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "maven.modrinth:modmenu:${project.modmenu_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	
+	api "net.neoforged:bus:7.2.+"
+    include "net.neoforged:bus:7.2.+"
+    
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+}
+
+modDependencies = []
+
+loom {
+    accessWidenerPath = file("src/fabric/resources/creativecore.accesswidener")
+}

@@ -1,0 +1,21 @@
+{
+    "required": true,
+    "package": "team.creative.creativecore.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "ComponentSerializationMixin",
+        "FilePackResourcesAccessor",
+        "FixedPathPackResourcesAccessor",
+        "PathPackResourcesAccessor",
+        "ShapesMixin",
+        "SharedZipFileAccessAccessor",
+        "VoxelShapeAccessor"
+    ],
+    "client": [
+        "GuiGraphicsExtractorMixin",
+        "MouseHandlerAccessor",
+        "StringSplitterAccessor",
+        "ScissorStackMixin"
+    ],
+    "minVersion": "0.8"
+}

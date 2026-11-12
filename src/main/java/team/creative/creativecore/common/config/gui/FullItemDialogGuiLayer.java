@@ -1,0 +1,90 @@
+package team.creative.creativecore.common.config.gui;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+import team.creative.creativecore.common.gui.Align;
+import team.creative.creativecore.common.gui.GuiLayer;
+import team.creative.creativecore.common.gui.GuiParent;
+import team.creative.creativecore.common.gui.control.collection.GuiComboBox;
+import team.creative.creativecore.common.gui.control.parent.GuiLeftRightBox;
+import team.creative.creativecore.common.gui.control.parent.GuiScrollY;
+import team.creative.creativecore.common.gui.control.parent.GuiTopBottomBox;
+import team.creative.creativecore.common.gui.control.simple.GuiButton;
+import team.creative.creativecore.common.gui.control.simple.GuiLabel;
+import team.creative.creativecore.common.gui.flow.GuiFlow;
+import team.creative.creativecore.common.util.ingredient.CreativeIngredient;
+import team.creative.creativecore.common.util.ingredient.GuiCreativeIngredientHandler;
+import team.creative.creativecore.common.util.text.TextMapBuilder;
+
+public class FullItemDialogGuiLayer extends GuiLayer {
+    
+    public static List<CreativeIngredient> latest = new ArrayList<CreativeIngredient>();
+    
+    public GuiInfoStackButton button;
+    
+    public GuiCreativeIngredientHandler handler;
+    
+    public FullItemDialogGuiLayer(boolean client) {
+        super(client, "info", 250, 230);
+        this.setFlow(GuiFlow.STACK_Y);
+        registerEventChanged(x -> {
+            if (x.control.is("type")) {
+                init();
+            } else
+                handler.onChanged(this, x);
+        });
+    }
+    
+    @Override
+    public void create() {
+        if (button == null)
+            return;
+        CreativeIngredient info = button.get();
+        handler = GuiCreativeIngredientHandler.find(info);
+        
+        GuiComboBox<GuiCreativeIngredientHandler> box = get("type");
+        if (box != null)
+            handler = box.selected();
+        
+        clear();
+        
+        GuiTopBottomBox topBottom = new GuiTopBottomBox(this);
+        add(topBottom);
+        box = new GuiComboBox<GuiCreativeIngredientHandler>(this, "type", new TextMapBuilder<GuiCreativeIngredientHandler>().addEntrySet(GuiCreativeIngredientHandler.REGISTRY
+                .entrySet(), x -> Component.literal(x.getKey())));
+        box.setExpandableX();
+        box.selectSilent(handler);
+        topBottom.addTop(box);
+        
+        handler.createControls(topBottom.top, info);
+        
+        topBottom.addBottom(new GuiParent(this, "spacer").setDim(-1, 4));
+        topBottom.addBottom(new GuiLabel(this, "latest").setTranslate("gui.ingredient.latest"));
+        GuiScrollY scroll = (GuiScrollY) new GuiScrollY(this, "latest").setDim(100, 40).setExpandableX();
+        for (int i = 0; i < latest.size(); i++) {
+            final int id = i;
+            scroll.add(new GuiButton(this, "" + i, x -> {
+                FullItemDialogGuiLayer.this.button.set(latest.get(id));
+                closeTopLayer();
+                dist().playSound(SoundEvents.UI_BUTTON_CLICK);
+            }).setTitle(GuiInfoStackButton.getLabelText(latest.get(i))).setAlign(Align.CENTER).setExpandableX());
+        }
+        topBottom.addBottom(scroll);
+        
+        GuiLeftRightBox actionBox = new GuiLeftRightBox(this).addLeft(new GuiButton(this, "cancel", x -> closeTopLayer()).setTitle(Component.translatable("gui.cancel"))).addRight(
+            new GuiButton(this, "save", x -> {
+                CreativeIngredient parsedInfo = handler.parseControls(topBottom.top);
+                if (parsedInfo != null) {
+                    FullItemDialogGuiLayer.this.button.set(parsedInfo);
+                    if (!latest.contains(parsedInfo))
+                        latest.add(0, parsedInfo.copy());
+                    closeTopLayer();
+                }
+            }).setTitle(Component.translatable("gui.save")));
+        topBottom.addBottom(actionBox);
+    }
+    
+}

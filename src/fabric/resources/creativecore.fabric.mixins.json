@@ -1,0 +1,21 @@
+{
+    "required": true,
+    "package": "team.creative.creativecore.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "ArgumentTypeInfosAccessor",
+        "ConnectionMixin",
+        "ModNioResourcePackAccessor",
+        "PlayerListMixin",
+        "LivingEntityMixin",
+        "ServerConfigurationPacketListenerImplMixin",
+        "ServerCommonPacketListenerImplAccessor"
+    ],
+    "client": [
+        "ClientConfigurationPacketListenerImplMixin",
+        "AbstractContainerScreenMixin",
+        "GameRendererMixin"
+    ],
+    "minVersion": "0.8",
+    "mixinextras": {"minVersion": "0.5.5"}
+}
