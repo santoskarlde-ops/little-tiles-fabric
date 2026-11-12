@@ -9,7 +9,7 @@ import javax.annotation.Nullable;
 
 import org.joml.Vector3d;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.tags.TagKey;
@@ -518,11 +518,11 @@ public final class LittleTile extends LittleElement implements Iterable<LittleBo
     // ================Ingredient================
     
     @Environment(EnvType.CLIENT)
-    public boolean canRenderInLayer(RenderType layer) {
+    public boolean canRenderInLayer(ChunkSectionLayer layer) {
         if (ColorUtils.isInvisible(color))
             return false;
         if (ColorUtils.isTransparent(color))
-            return layer == RenderType.translucent();
+            return layer == ChunkSectionLayer.TRANSLUCENT;
         return LittleBlockClientRegistry.canRenderInLayer(getBlock(), layer);
     }
     

@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.function.Function;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import team.creative.creativecore.common.util.type.itr.ComputeNextIterator;
 import team.creative.creativecore.common.util.type.list.Tuple;
 
@@ -12,12 +12,12 @@ import team.creative.creativecore.common.util.type.list.Tuple;
  * Small Fabric-side replacement for CreativeCore's render-layer map.
  *
  * Minecraft 26.3 still exposes the canonical chunk render layers through
- * RenderType.CHUNK_BUFFER_LAYERS; the old CreativeCore helper was not present
+ * ChunkSectionLayer.values(); the old CreativeCore helper was not present
  * in the staged 26.x sources.
  */
 public class ChunkLayerMap<T> implements Iterable<T> {
 
-    private static final RenderType[] LAYERS = RenderType.CHUNK_BUFFER_LAYERS.toArray(RenderType[]::new);
+    private static final ChunkSectionLayer[] LAYERS = ChunkSectionLayer.values();
     public static final int LAYERS_COUNT = LAYERS.length;
     private final T[] content;
 
@@ -25,7 +25,7 @@ public class ChunkLayerMap<T> implements Iterable<T> {
         content = (T[]) new Object[LAYERS_COUNT];
     }
 
-    public ChunkLayerMap(Function<RenderType, T> factory) {
+    public ChunkLayerMap(Function<ChunkSectionLayer, T> factory) {
         content = (T[]) new Object[LAYERS_COUNT];
         for (int i = 0; i < content.length; i++)
             content[i] = factory.apply(LAYERS[i]);
@@ -35,18 +35,18 @@ public class ChunkLayerMap<T> implements Iterable<T> {
         content = Arrays.copyOf(map.content, LAYERS_COUNT);
     }
 
-    public static RenderType layer(int index) {
+    public static ChunkSectionLayer layer(int index) {
         return LAYERS[index];
     }
 
-    private int index(RenderType layer) {
+    private int index(ChunkSectionLayer layer) {
         for (int i = 0; i < LAYERS.length; i++)
             if (LAYERS[i] == layer || LAYERS[i].equals(layer))
                 return i;
         throw new IllegalArgumentException("Unknown chunk render layer: " + layer);
     }
 
-    public T get(RenderType layer) {
+    public T get(ChunkSectionLayer layer) {
         return content[index(layer)];
     }
 
@@ -54,21 +54,21 @@ public class ChunkLayerMap<T> implements Iterable<T> {
         return content[index];
     }
 
-    public T put(RenderType layer, T value) {
+    public T put(ChunkSectionLayer layer, T value) {
         int index = index(layer);
         T old = content[index];
         content[index] = value;
         return old;
     }
 
-    public T remove(RenderType layer) {
+    public T remove(ChunkSectionLayer layer) {
         int index = index(layer);
         T old = content[index];
         content[index] = null;
         return old;
     }
 
-    public boolean containsKey(RenderType layer) {
+    public boolean containsKey(ChunkSectionLayer layer) {
         return get(layer) != null;
     }
 
@@ -88,13 +88,13 @@ public class ChunkLayerMap<T> implements Iterable<T> {
         return size() == 0;
     }
 
-    public Iterable<Tuple<RenderType, T>> tuples() {
+    public Iterable<Tuple<ChunkSectionLayer, T>> tuples() {
         return () -> new ComputeNextIterator<>() {
             private int index;
-            private final Tuple<RenderType, T> tuple = new Tuple<>(null, null);
+            private final Tuple<ChunkSectionLayer, T> tuple = new Tuple<>(null, null);
 
             @Override
-            protected Tuple<RenderType, T> computeNext() {
+            protected Tuple<ChunkSectionLayer, T> computeNext() {
                 while (index < content.length && content[index] == null)
                     index++;
                 if (index >= content.length)

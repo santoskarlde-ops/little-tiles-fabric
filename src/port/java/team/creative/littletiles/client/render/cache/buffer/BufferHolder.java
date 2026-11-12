@@ -11,7 +11,6 @@ import com.mojang.blaze3d.vertex.MeshData;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
-import net.caffeinemc.mods.sodium.client.model.quad.properties.ModelQuadFacing;
 import net.minecraft.world.phys.Vec3;
 import team.creative.littletiles.LittleTiles;
 import team.creative.creativecore.client.render.VertexFormatUtils;
@@ -20,6 +19,10 @@ import team.creative.littletiles.mixin.client.render.ByteBufferBuilderResultAcce
 import team.creative.littletiles.mixin.client.render.MeshDataAccessor;
 
 public class BufferHolder implements BufferCache {
+    
+    /** Ordinal of Sodium's ModelQuadFacing.UNASSIGNED: the six directions come first. Not linked to Sodium so this class compiles without it. */
+    private static final int UNASSIGNED_FACING = 6;
+
     
     public static BufferHolder combine(BufferHolder first, BufferHolder second) {
         if (first == null && second == null)
@@ -123,7 +126,7 @@ public class BufferHolder implements BufferCache {
     
     @Override
     public int lengthToUpload(int facing) {
-        if (isAvailable() && facing == ModelQuadFacing.UNASSIGNED.ordinal())
+        if (isAvailable() && facing == UNASSIGNED_FACING)
             return length;
         return 0;
     }

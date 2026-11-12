@@ -3,13 +3,13 @@ package net.neoforged.neoforge.client;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 
-public final class ChunkRenderTypeSet implements Iterable<RenderType> {
-    private final Set<RenderType> values;
-    private ChunkRenderTypeSet(Set<RenderType> values) { this.values = values; }
-    public static ChunkRenderTypeSet of(RenderType value) { return new ChunkRenderTypeSet(Collections.singleton(value)); }
-    public boolean contains(RenderType value) { return values.contains(value); }
+public final class ChunkRenderTypeSet implements Iterable<ChunkSectionLayer> {
+    private final Set<ChunkSectionLayer> values;
+    private ChunkRenderTypeSet(Set<ChunkSectionLayer> values) { this.values = values; }
+    public static ChunkRenderTypeSet of(ChunkSectionLayer value) { return new ChunkRenderTypeSet(Collections.singleton(value)); }
+    public boolean contains(ChunkSectionLayer value) { return values.contains(value); }
     public boolean isEmpty() { return values.isEmpty(); }
-    public Iterator<RenderType> iterator() { return values.iterator(); }
+    public Iterator<ChunkSectionLayer> iterator() { return values.iterator(); }
 }

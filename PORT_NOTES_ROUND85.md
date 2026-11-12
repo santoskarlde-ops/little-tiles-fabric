@@ -1,0 +1,8 @@
+# Round 85 — last pose(float) call (uncompiled)
+
+Apply after Round 84. Paste this entry at the top of PORT_NOTES.md.
+
+- `LittleAnimationHandlerClient` highlight renderer: `entity.getOrigin().pose(event.getPartialTick()...)` becomes `VecOriginPose.of(entity.getOrigin(), mc.getDeltaTracker().getGameTimeDeltaPartialTick(false))`. `IVecOrigin.pose(float)` is gone from CreativeCore, `VecOriginPose` is already imported in the file, and the partial tick now comes from the delta tracker as in the rest of the tree because `RenderLevelStageEvent` (a stub) has no `getPartialTick()`. Targets 1 or 2 errors on that line.
+- Source-reviewed only; the file parsed with the JDK compiler. No new count is claimed.
+- Stopped here deliberately (Rounds 86-90 not produced): everything left needs signatures that are not in the API dumps, mainly `RenderBuffers`, `Lighting`, `SectionCompiler`/`SectionMesh`/`CompiledSectionMesh`, `PrimitiveTopology`, `DefaultVertexFormat`, `BlockQuadOutput`, `ModelBlockRenderer` and CreativeCore's current render classes. About 120 of the remaining errors are `RenderSystem.*` / `GlStateManager` / `BufferUploader` / `Tesselator` calls. 26.3 has no global GL state at all (state lives in `RenderPipeline`s and `RenderType`s), so deleting those calls would not fix anything; they need the replacement drawing code written against real signatures.
+- Open design items found on the way, not changed: `RegisterClientExtensionsEvent.registerBlock` (the stub only has `register`; `BlockTileRenderProperties` has no Fabric hook), `ItemProperties` (item properties are data-driven now), `getItemColors()` (colour providers are data-driven now), `LittleTilesProfilerOverlay.register()`.

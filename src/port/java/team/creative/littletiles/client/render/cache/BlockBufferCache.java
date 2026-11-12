@@ -6,7 +6,7 @@ import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import team.creative.creativecore.common.util.type.map.ChunkLayerMap;
 import team.creative.littletiles.client.render.cache.buffer.AdditionalBuffers;
 import team.creative.littletiles.client.render.cache.buffer.BufferCache;
@@ -23,7 +23,7 @@ public class BlockBufferCache implements IBlockBufferCache {
     
     public BlockBufferCache() {}
     
-    private BufferCache getUploaded(RenderType layer) {
+    private BufferCache getUploaded(ChunkSectionLayer layer) {
         BufferCache holder = uploaded.get(layer);
         if (holder != null && holder.isInvalid()) {
             uploaded.remove(layer);
@@ -32,14 +32,14 @@ public class BlockBufferCache implements IBlockBufferCache {
         return holder;
     }
     
-    private BufferCache getOriginal(RenderType layer) {
+    private BufferCache getOriginal(ChunkSectionLayer layer) {
         BufferCache queued = queue.get(layer);
         if (queued == null)
             return getUploaded(layer);
         return queued;
     }
     
-    private BufferCache getAndRemoveOriginal(RenderType layer) {
+    private BufferCache getAndRemoveOriginal(ChunkSectionLayer layer) {
         BufferCache queued = queue.remove(layer);
         if (queued == null)
             return getUploaded(layer);
@@ -47,7 +47,7 @@ public class BlockBufferCache implements IBlockBufferCache {
     }
     
     @Override
-    public BufferCache getIncludingAdditional(RenderType layer) {
+    public BufferCache getIncludingAdditional(ChunkSectionLayer layer) {
         var original = getOriginal(layer);
         if (hasAdditional())
             return additional.getAdditional(original, layer);
@@ -55,8 +55,8 @@ public class BlockBufferCache implements IBlockBufferCache {
     }
     
     @Override
-    public void upload(Function<RenderType, ChunkBufferUploader> builderSupplier, Function<RenderType, BufferCollection> bufferSupplier) throws VertexFormatMismatchException {
-        for (RenderType layer : RenderType.CHUNK_BUFFER_LAYERS) {
+    public void upload(Function<ChunkSectionLayer, ChunkBufferUploader> builderSupplier, Function<ChunkSectionLayer, BufferCollection> bufferSupplier) throws VertexFormatMismatchException {
+        for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
             if (!has(layer))
                 continue;
             
@@ -79,7 +79,7 @@ public class BlockBufferCache implements IBlockBufferCache {
     }
     
     @Override
-    public synchronized BufferCache extract(RenderType layer, int toExtract) {
+    public synchronized BufferCache extract(ChunkSectionLayer layer, int toExtract) {
         List<BufferCache> buffers = null;
         if (additional != null)
             for (LayeredBufferCache layeredCache : additional.additionals()) {
@@ -118,7 +118,7 @@ public class BlockBufferCache implements IBlockBufferCache {
     }
     
     @Override
-    public boolean has(RenderType layer) {
+    public boolean has(ChunkSectionLayer layer) {
         return queue.containsKey(layer) || getUploaded(layer) != null || (additional != null && additional.has(layer));
     }
     
@@ -133,7 +133,7 @@ public class BlockBufferCache implements IBlockBufferCache {
     }
     
     public synchronized void setBuffers(ChunkLayerMap<BufferCache> buffers) {
-        for (RenderType layer : RenderType.CHUNK_BUFFER_LAYERS) {
+        for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
             BufferCache buffer = buffers.get(layer);
             if (buffer == null)
                 uploaded.remove(layer);
@@ -159,7 +159,7 @@ public class BlockBufferCache implements IBlockBufferCache {
     }
     
     public boolean hasInvalidBuffers() {
-        for (Entry<RenderType, BufferCache> entry : uploaded.tuples())
+        for (Entry<ChunkSectionLayer, BufferCache> entry : uploaded.tuples())
             if ((entry.getValue() != null && (entry.getValue().isInvalid() || !entry.getValue().isAvailable())) && !queue.containsKey(entry.getKey()))
                 return true;
         return false;

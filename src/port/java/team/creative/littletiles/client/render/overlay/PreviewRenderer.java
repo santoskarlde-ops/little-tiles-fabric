@@ -104,7 +104,7 @@ public class PreviewRenderer {
     }
     
     public boolean isVisible(AABB bb) {
-        return Minecraft.getInstance().levelRenderer.getFrustum().isVisible(bb);
+        return Minecraft.getInstance().gameRenderer.mainCamera().getCullFrustum().isVisible(bb);
     }
     
     public int select(ILittleLevelContext context, List<ShapePosition> positions) {

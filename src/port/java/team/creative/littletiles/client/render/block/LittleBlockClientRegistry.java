@@ -5,21 +5,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.neoforged.neoforge.client.ChunkRenderTypeSet;
-import net.neoforged.neoforge.client.RenderTypeHelper;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import team.creative.littletiles.api.common.block.ILittleMCBlock;
 import team.creative.littletiles.api.common.block.LittleBlock;
 
 public class LittleBlockClientRegistry {
     
-    private static final ChunkRenderTypeSet SOLID = ChunkRenderTypeSet.of(RenderType.solid());
+    private static final ChunkRenderTypeSet SOLID = ChunkRenderTypeSet.of(ChunkSectionLayer.SOLID);
     private static final Map<LittleBlock, ChunkRenderTypeSet> CACHED_LAYERS = Collections.synchronizedMap(new HashMap<>());
     
     private static final Map<LittleBlock, Boolean> GUI_TRANSLUCENT = Collections.synchronizedMap(new HashMap<>());
     
-    public static synchronized boolean canRenderInLayer(LittleBlock block, RenderType layer) {
+    public static synchronized boolean canRenderInLayer(LittleBlock block, ChunkSectionLayer layer) {
         ChunkRenderTypeSet layers = CACHED_LAYERS.get(block);
         if (layers == null) {
             if (block.shouldUseStateForRenderType())
@@ -39,7 +38,7 @@ public class LittleBlockClientRegistry {
         if (translucent == null) {
             if (block.shouldUseStateForRenderType()) {
                 var layers = Minecraft.getInstance().getBlockRenderer().getBlockModel(block.getState()).getRenderTypes(block.getStack(), false);
-                GUI_TRANSLUCENT.put(block, translucent = layers.contains(RenderTypeHelper.getEntityRenderType(RenderType.TRANSLUCENT, false)));
+                GUI_TRANSLUCENT.put(block, translucent = layers.contains(ChunkSectionLayer.TRANSLUCENT));
             } else
                 GUI_TRANSLUCENT.put(block, translucent = true);
         }

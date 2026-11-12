@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -416,7 +416,7 @@ public abstract class LittleSignalCableBase extends LittleStructurePremade imple
         if (ColorUtils.isInvisible(color))
             return;
         
-        RenderType layer = ColorUtils.isTransparent(color) ? RenderType.translucent() : RenderType.solid();
+        ChunkSectionLayer layer = ColorUtils.isTransparent(color) ? ChunkSectionLayer.TRANSLUCENT : ChunkSectionLayer.SOLID;
         
         try {
             SurroundingBox box = getSurroundingBox();

@@ -57,8 +57,8 @@ import team.creative.littletiles.client.action.interact.LittleInteractionHandler
 import team.creative.littletiles.client.level.LevelHandlersClient;
 import team.creative.littletiles.client.level.LittleAnimationHandlerClient;
 import team.creative.littletiles.client.level.LittleVanillaInteractionHandlerClient;
-import team.creative.littletiles.client.mod.iris.IrisManager;
-import team.creative.littletiles.client.mod.sodium.SodiumManager;
+import team.creative.littletiles.client.compat.iris.IrisManager;
+import team.creative.littletiles.client.compat.sodium.SodiumManager;
 import team.creative.littletiles.client.player.LittleClientPlayerConnection;
 import team.creative.littletiles.client.render.block.BETilesRenderer;
 import team.creative.littletiles.client.render.block.BlockTileRenderProperties;

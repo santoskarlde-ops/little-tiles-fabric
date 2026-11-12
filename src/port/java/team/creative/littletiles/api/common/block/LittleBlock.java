@@ -4,7 +4,7 @@ import javax.annotation.Nullable;
 
 import org.joml.Vector3d;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
@@ -74,7 +74,7 @@ public interface LittleBlock {
     
     public Vector3d getFogColor(IParentCollection parent, LittleTile tile, Entity entity, Vector3d originalColor, float partialTicks);
     
-    public LittleRenderBox getRenderBox(LittleGrid grid, RenderType layer, LittleBox box, LittleElement element);
+    public LittleRenderBox getRenderBox(LittleGrid grid, ChunkSectionLayer layer, LittleBox box, LittleElement element);
     
     public boolean canBeRenderCombined(LittleTile one, LittleTile two);
     

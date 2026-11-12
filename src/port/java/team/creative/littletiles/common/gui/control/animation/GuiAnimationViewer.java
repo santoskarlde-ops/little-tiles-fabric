@@ -15,7 +15,7 @@ import com.mojang.math.Axis;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.neoforged.api.distmarker.Dist;
@@ -148,7 +148,7 @@ public class GuiAnimationViewer extends GuiControl {
         initialized = false;
     }
     @Environment(EnvType.CLIENT)
-    protected void renderContent(GuiGraphics graphics, Rect controlRect, Rect realRect, double controlScale, int mouseX, int mouseY) {
+    protected void renderContent(GuiGraphicsExtractor graphics, Rect controlRect, Rect realRect, double controlScale, int mouseX, int mouseY) {
         if (!storage.isReady())
             return;
         
@@ -221,7 +221,7 @@ public class GuiAnimationViewer extends GuiControl {
         RenderSystem.applyModelViewMatrix();
     }
     @Environment(EnvType.CLIENT)
-    protected void renderContent(GuiGraphics graphics, int mouseX, int mouseY) {}
+    protected void renderContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {}
     public void closed() {}
     public void init() {}
     public void tick() {}

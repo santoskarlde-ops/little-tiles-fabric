@@ -24,7 +24,7 @@ import net.minecraft.CrashReport;
 import net.minecraft.util.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.SectionBufferBuilderPack;
 import net.minecraft.client.renderer.chunk.RenderChunkRegion;
 import net.minecraft.client.renderer.chunk.RenderRegionCache;
@@ -45,6 +45,7 @@ import net.fabricmc.api.Environment;
 import net.neoforged.neoforge.client.ClientHooks;
 import net.neoforged.neoforge.client.event.AddSectionGeometryEvent.AdditionalSectionRenderer;
 import team.creative.creativecore.common.util.math.vec.Vec3d;
+import team.creative.littletiles.common.compat.creativecore.VecOriginPose;
 import team.creative.creativecore.common.util.type.list.Tuple;
 import team.creative.creativecore.common.util.type.map.ChunkLayerMap;
 import team.creative.littletiles.client.LittleTilesClient;
@@ -141,14 +142,14 @@ public class LittleRenderChunk implements RenderChunkExtender {
     }
     
     @Override
-    public VertexBuffer getVertexBuffer(RenderType layer) {
+    public VertexBuffer getVertexBuffer(ChunkSectionLayer layer) {
         return this.buffers.get(layer);
     }
     
     protected double getDistToPlayerSqr() {
         var mc = Minecraft.getInstance();
         Camera camera = mc.gameRenderer.mainCamera();
-        Vec3 cam = level().getOrigin().pose(mc.getDeltaTracker().getGameTimeDeltaPartialTick(false)).transformInverse(camera.position());
+        Vec3 cam = VecOriginPose.of(level().getOrigin(), mc.getDeltaTracker().getGameTimeDeltaPartialTick(false)).transformInverse(camera.position());
         Vec3 center = bb.getCenter();
         double d0 = center.x - cam.x;
         double d1 = center.y - cam.y;
@@ -195,7 +196,7 @@ public class LittleRenderChunk implements RenderChunkExtender {
         return this.dirty && this.playerChanged;
     }
     
-    public boolean resortTransparency(RenderType layer) {
+    public boolean resortTransparency(ChunkSectionLayer layer) {
         CompiledSection compiled = this.getCompiledSection();
         if (this.lastResortTransparencyTask != null)
             this.lastResortTransparencyTask.cancel();
@@ -264,14 +265,14 @@ public class LittleRenderChunk implements RenderChunkExtender {
     }
     
     @Override
-    public void setHasBlock(RenderType layer) {
+    public void setHasBlock(ChunkSectionLayer layer) {
         CompiledSection compiled = getCompiledSection();
         if (compiled != CompiledSection.UNCOMPILED)
             ((CompiledSectionAccessor) compiled).getHasBlocks().add(layer);
     }
     
     @Override
-    public boolean isEmpty(RenderType layer) {
+    public boolean isEmpty(ChunkSectionLayer layer) {
         return getCompiledSection().isEmpty(layer);
     }
     
@@ -363,7 +364,7 @@ public class LittleRenderChunk implements RenderChunkExtender {
             ((CompiledSectionAccessor) compiled).setTransparencyState(results.transparencyState);
             
             List<CompletableFuture<Void>> list = Lists.newArrayList();;
-            for (Entry<RenderType, MeshData> entry : results.renderedLayers.entrySet()) {
+            for (Entry<ChunkSectionLayer, MeshData> entry : results.renderedLayers.entrySet()) {
                 list.add(manager.uploadChunkLayer(entry.getValue(), LittleRenderChunk.this.getVertexBuffer(entry.getKey())));
                 ((CompiledSectionAccessor) compiled).getHasBlocks().add(entry.getKey());
             }
@@ -383,7 +384,7 @@ public class LittleRenderChunk implements RenderChunkExtender {
                     LittleRenderChunk.this.prepareUpload();
                     var caches = ((SectionCompilerResultsExtender) (Object) results).getCaches();
                     if (caches != null)
-                        for (Tuple<RenderType, BufferCollection> tuple : caches.tuples())
+                        for (Tuple<ChunkSectionLayer, BufferCollection> tuple : caches.tuples())
                             LittleRenderChunk.this.uploaded(tuple.key, tuple.value);
                 }
             });
@@ -428,16 +429,16 @@ public class LittleRenderChunk implements RenderChunkExtender {
             
             Vec3d cam = manager.getCameraPosition();
             MeshData.SortState sortstate = ((CompiledSectionAccessor) this.compiledSection).getTransparencyState();
-            if (sortstate != null && !this.compiledSection.isEmpty(RenderType.translucent())) {
+            if (sortstate != null && !this.compiledSection.isEmpty(ChunkSectionLayer.TRANSLUCENT)) {
                 VertexSorting vertexsorting = LittleRenderChunk.this.createVertexSorting(cam.x, cam.y, cam.z);
-                ByteBufferBuilder.Result result = sortstate.buildSortedIndexBuffer(pack.buffer(RenderType.translucent()), vertexsorting);
+                ByteBufferBuilder.Result result = sortstate.buildSortedIndexBuffer(pack.buffer(ChunkSectionLayer.TRANSLUCENT), vertexsorting);
                 if (result == null)
                     return CompletableFuture.completedFuture(SectionTaskResult.CANCELLED);
                 if (this.isCancelled.get()) {
                     result.close();
                     return CompletableFuture.completedFuture(SectionTaskResult.CANCELLED);
                 }
-                CompletableFuture<SectionTaskResult> completablefuture = manager.uploadSectionIndexBuffer(result, LittleRenderChunk.this.getVertexBuffer(RenderType.translucent()))
+                CompletableFuture<SectionTaskResult> completablefuture = manager.uploadSectionIndexBuffer(result, LittleRenderChunk.this.getVertexBuffer(ChunkSectionLayer.TRANSLUCENT))
                         .thenApply(x -> SectionTaskResult.CANCELLED);
                 return completablefuture.handle((r, exception) -> {
                     if (exception != null && !(exception instanceof CancellationException) && !(exception instanceof InterruptedException))

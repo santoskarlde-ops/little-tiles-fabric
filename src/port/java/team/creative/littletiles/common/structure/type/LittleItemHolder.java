@@ -3,7 +3,7 @@ package team.creative.littletiles.common.structure.type;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -138,7 +138,7 @@ public class LittleItemHolder extends LittleStructure {
         LittleBox littleBox = frame.getBox();
         AlignedBox box = littleBox.getBox(frame.getGrid());
         if (!stack.isEmpty())
-            cubes.add(RenderType.cutout(), new LittleRenderBoxItem(this, box, littleBox));
+            cubes.add(ChunkSectionLayer.CUTOUT, new LittleRenderBoxItem(this, box, littleBox));
     }
     
 }

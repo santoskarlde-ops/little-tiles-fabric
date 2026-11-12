@@ -5,7 +5,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
@@ -208,7 +208,7 @@ public class PreviewManager implements LevelAwareHandler {
             
             ILittleLevelContext context = ILittleLevelContext.of(level, pos);
             context.transformPose(pose, pos.getX(), pos.getY(), pos.getZ(), cam, TickUtils.getFrameTime(level()));
-            PreviewRenderer.renderShape(pose, event.getMultiBufferSource().getBuffer(RenderType.lines()), shape, 0, 0, 0, 0.0F, 0.0F, 0.0F, 0.4F);
+            PreviewRenderer.renderShape(pose, event.getMultiBufferSource().getBuffer(RenderTypes.lines()), shape, 0, 0, 0, 0.0F, 0.0F, 0.0F, 0.4F);
             pose.popPose();
             event.setCanceled(true);
         }

@@ -9,7 +9,7 @@ import com.mojang.renderpearl.api.vertex.VertexFormat;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
@@ -179,7 +179,7 @@ public class RenderingThread extends Thread {
                         }
                         
                         for (ChunkLayerMapList<LittleRenderBox> map : cubes.values()) {
-                            for (Tuple<RenderType, List<LittleRenderBox>> tuple : map.tuples()) {
+                            for (Tuple<ChunkSectionLayer, List<LittleRenderBox>> tuple : map.tuples()) {
                                 for (LittleRenderBox cube : tuple.value) {
                                     if (cube.doesNeedQuadUpdate) {
                                         fakeAccess.set(data.be.getLevel(), pos, cube.state);

@@ -24,7 +24,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.resources.model.ModelBakery;
@@ -36,6 +36,7 @@ import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.fabricmc.api.EnvType;
@@ -174,7 +175,7 @@ public abstract class LittleEntityRenderManager<T extends LittleEntity> {
     protected void renderBlockEntity(BlockEntity blockentity, PoseStack pose, Frustum frustum, Vec3 cam, float frameTime, MultiBufferSource bufferSource) {
         var dispatcher = mc.getBlockEntityRenderDispatcher();
         BlockEntityRenderer renderer = dispatcher.getRenderer(blockentity);
-        if (renderer == null || !frustum.isVisible(VecOriginPose.of(entity.getOrigin(), frameTime).transform(renderer.getRenderBoundingBox(blockentity)).toVanilla()))
+        if (renderer == null || !frustum.isVisible(VecOriginPose.of(entity.getOrigin(), frameTime).transform(new AABB(blockentity.getBlockPos())).toVanilla()))
             return;
         BlockPos blockpos4 = blockentity.getBlockPos();
         pose.pushPose();
@@ -229,9 +230,9 @@ public abstract class LittleEntityRenderManager<T extends LittleEntity> {
         }
     }
     
-    public abstract void resortTransparency(RenderType layer, double x, double y, double z);
+    public abstract void resortTransparency(ChunkSectionLayer layer, double x, double y, double z);
     
-    public abstract void renderChunkLayer(RenderType layer, PoseStack pose, double x, double y, double z, Matrix4f projectionMatrix, Uniform offset);
+    public abstract void renderChunkLayer(ChunkSectionLayer layer, PoseStack pose, double x, double y, double z, Matrix4f projectionMatrix, Uniform offset);
     
     public void onLightUpdate(LightLayer layer, SectionPos pos) {
         var chunk = getLevel().getChunk(pos.getX(), pos.getZ());

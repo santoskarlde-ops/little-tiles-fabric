@@ -9,7 +9,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import team.creative.creativecore.common.level.ISubLevel;
 import team.creative.littletiles.client.level.little.FakeClientLevel;
-import team.creative.littletiles.client.mod.sodium.SodiumManager;
+import team.creative.littletiles.client.compat.sodium.SodiumManager;
 import team.creative.littletiles.client.render.cache.pipeline.LittleRenderPipelineType;
 import team.creative.littletiles.client.render.mc.RenderChunkExtender;
 import team.creative.littletiles.client.render.mc.ViewAreaExtender;

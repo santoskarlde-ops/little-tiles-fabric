@@ -21,7 +21,7 @@ import com.mojang.renderpearl.api.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.world.phys.Vec3;
 import team.creative.creativecore.common.util.type.list.Tuple;
 import team.creative.creativecore.common.util.type.map.ChunkLayerMap;
@@ -33,7 +33,7 @@ import team.creative.littletiles.client.render.cache.buffer.ChunkBufferUploader;
 
 public interface RenderChunkExtender {
     
-    public VertexBuffer getVertexBuffer(RenderType layer);
+    public VertexBuffer getVertexBuffer(ChunkSectionLayer layer);
     
     public void markReadyForUpdate(boolean playerChanged);
     
@@ -43,13 +43,13 @@ public interface RenderChunkExtender {
     
     public VertexSorting createVertexSorting(double x, double y, double z);
     
-    public boolean isEmpty(RenderType layer);
+    public boolean isEmpty(ChunkSectionLayer layer);
     
     public SortState getTransparencyState();
     
     public void setTransparencyState(SortState state);
     
-    public void setHasBlock(RenderType layer);
+    public void setHasBlock(ChunkSectionLayer layer);
     
     public int getQueued();
     
@@ -71,13 +71,13 @@ public interface RenderChunkExtender {
         setLastUploaded(null);
     }
     
-    public default void beforeCompileEnds(@Nullable Function<RenderType, ChunkBufferUploader> builderSupplier, Function<RenderType, BufferCollection> bufferSupplier) {
+    public default void beforeCompileEnds(@Nullable Function<ChunkSectionLayer, ChunkBufferUploader> builderSupplier, Function<ChunkSectionLayer, BufferCollection> bufferSupplier) {
         var additional = getAdditional();
         if (additional != null) // Make sure all buffers that could not be added yet are added now. Also this ensure that everything is cleaned up
             additional.onSectionUploads(builderSupplier, bufferSupplier);
     }
     
-    public default void uploaded(RenderType layer, BufferCollection buffers) {
+    public default void uploaded(ChunkSectionLayer layer, BufferCollection buffers) {
         if (buffers != null) {
             ChunkLayerMap<BufferCollection> uploaded = getLastUploaded();
             if (getLastUploaded() == null)
@@ -97,7 +97,7 @@ public interface RenderChunkExtender {
             return;
         Supplier<Boolean> run = () -> {
             SimpleChunkBufferDownloader downloader = new SimpleChunkBufferDownloader();
-            for (Tuple<RenderType, BufferCollection> tuple : lastUploaded.tuples()) {
+            for (Tuple<ChunkSectionLayer, BufferCollection> tuple : lastUploaded.tuples()) {
                 VertexBuffer buffer = getVertexBuffer(tuple.key);
                 BufferCollection uploaded = tuple.value;
                 
@@ -145,7 +145,7 @@ public interface RenderChunkExtender {
     }
     
     public default boolean appendRenderData(Iterable<? extends LayeredBufferCache> blocks) {
-        for (RenderType layer : RenderType.CHUNK_BUFFER_LAYERS) {
+        for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
             
             int size = 0;
             for (LayeredBufferCache data : blocks)
@@ -179,8 +179,8 @@ public interface RenderChunkExtender {
             }
             
             MeshData data = builder.build();
-            if (layer == RenderType.translucent()) {
-                var cam = Minecraft.getInstance().levelRenderer.getSectionRenderDispatcher().getCameraPosition();
+            if (layer == ChunkSectionLayer.TRANSLUCENT) {
+                var cam = Minecraft.getInstance().gameRenderer.mainCamera().position();
                 setTransparencyState(data.sortQuads(buffer, createVertexSorting(cam.x, cam.y, cam.z)));
             }
             

@@ -35,7 +35,8 @@ import net.minecraft.util.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.SectionBufferBuilderPack;
 import net.minecraft.client.renderer.SectionBufferBuilderPool;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -67,7 +68,7 @@ import team.creative.creativecore.common.util.math.utils.BooleanUtils;
 import team.creative.creativecore.common.util.type.itr.FilterIterator;
 import team.creative.littletiles.LittleTiles;
 import team.creative.littletiles.api.client.entity.LevelTransitionListener;
-import team.creative.littletiles.client.mod.sodium.SodiumManager;
+import team.creative.littletiles.client.compat.sodium.SodiumManager;
 import team.creative.littletiles.client.render.level.LittleRenderChunk;
 import team.creative.littletiles.client.render.level.transition.LittleLevelTransitionManagerClient;
 import team.creative.littletiles.common.block.mc.BlockTile;
@@ -350,7 +351,7 @@ public class LittleAnimationHandlerClient extends LittleAnimationHandler impleme
         Profiler.get().pop();
     }
     
-    public void resortTransparency(RenderType layer, double x, double y, double z) {
+    public void resortTransparency(ChunkSectionLayer layer, double x, double y, double z) {
         for (LittleEntity animation : entities)
             if (animation.hasLoaded()) {
                 var context = SableManager.context(animation.getRealLevel(), animation.position());
@@ -381,18 +382,15 @@ public class LittleAnimationHandlerClient extends LittleAnimationHandler impleme
         if (SodiumManager.installed() && !SableManager.INSTALLED)
             return;
         
-        RenderType layer = null;
+        ChunkSectionLayer layer = null;
         
+        // 26.3 only has SOLID, CUTOUT and TRANSLUCENT chunk layers: the cutout-mipped and tripwire passes no longer exist.
         if (event.getStage() == Stage.AFTER_SOLID_BLOCKS)
-            layer = RenderType.solid();
+            layer = ChunkSectionLayer.SOLID;
         else if (event.getStage() == Stage.AFTER_CUTOUT_BLOCKS)
-            layer = RenderType.cutout();
-        else if (event.getStage() == Stage.AFTER_CUTOUT_MIPPED_BLOCKS_BLOCKS)
-            layer = RenderType.cutoutMipped();
+            layer = ChunkSectionLayer.CUTOUT;
         else if (event.getStage() == Stage.AFTER_TRANSLUCENT_BLOCKS)
-            layer = RenderType.translucent();
-        else if (event.getStage() == Stage.AFTER_TRIPWIRE_BLOCKS)
-            layer = RenderType.tripwire();
+            layer = ChunkSectionLayer.TRANSLUCENT;
         
         if (layer == null)
             return;
@@ -496,9 +494,9 @@ public class LittleAnimationHandlerClient extends LittleAnimationHandler impleme
         pose.pushPose();
         BlockPos pos = result.asBlockHit().getBlockPos();
         BlockState state = result.level.getBlockState(pos);
-        VertexConsumer vertexconsumer2 = mc.renderBuffers().bufferSource().getBuffer(RenderType.lines());
+        VertexConsumer vertexconsumer2 = mc.renderBuffers().bufferSource().getBuffer(RenderTypes.lines());
         LittleEntity entity = result.getHolder();
-        var cam = entity.getOrigin().pose(event.getPartialTick().getGameTimeDeltaPartialTick(false)).setup(pose, mc.gameRenderer.mainCamera().position());
+        var cam = VecOriginPose.of(entity.getOrigin(), mc.getDeltaTracker().getGameTimeDeltaPartialTick(false)).setup(pose, mc.gameRenderer.mainCamera().position());
         RenderSystem.enableDepthTest();
         
         double x = pos.getX() - cam.x();

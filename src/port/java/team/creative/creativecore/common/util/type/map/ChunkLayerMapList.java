@@ -5,7 +5,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import team.creative.creativecore.common.util.type.itr.ComputeNextIterator;
 import team.creative.creativecore.common.util.type.list.Tuple;
 
@@ -21,29 +21,29 @@ public class ChunkLayerMapList<T> implements Iterable<T> {
         content = (List<T>[]) new List<?>[ChunkLayerMap.LAYERS_COUNT];
     }
 
-    private int index(RenderType layer) {
+    private int index(ChunkSectionLayer layer) {
         for (int i = 0; i < ChunkLayerMap.LAYERS_COUNT; i++)
             if (ChunkLayerMap.layer(i) == layer || ChunkLayerMap.layer(i).equals(layer))
                 return i;
         throw new IllegalArgumentException("Unknown chunk render layer: " + layer);
     }
 
-    public List<T> get(RenderType layer) {
+    public List<T> get(ChunkSectionLayer layer) {
         return content[index(layer)];
     }
 
-    public List<T> getOrCreate(RenderType layer) {
+    public List<T> getOrCreate(ChunkSectionLayer layer) {
         int index = index(layer);
         if (content[index] == null)
             content[index] = new ArrayList<>();
         return content[index];
     }
 
-    public void add(RenderType layer, T value) {
+    public void add(ChunkSectionLayer layer, T value) {
         getOrCreate(layer).add(value);
     }
 
-    public void consumeEachLayer(BiConsumer<RenderType, List<T>> consumer) {
+    public void consumeEachLayer(BiConsumer<ChunkSectionLayer, List<T>> consumer) {
         for (int i = 0; i < ChunkLayerMap.LAYERS_COUNT; i++)
             consumer.accept(ChunkLayerMap.layer(i), getOrCreate(ChunkLayerMap.layer(i)));
     }
@@ -74,13 +74,13 @@ public class ChunkLayerMapList<T> implements Iterable<T> {
         };
     }
 
-    public Iterable<Tuple<RenderType, List<T>>> tuples() {
+    public Iterable<Tuple<ChunkSectionLayer, List<T>>> tuples() {
         return () -> new ComputeNextIterator<>() {
             private int index;
-            private final Tuple<RenderType, List<T>> tuple = new Tuple<>(null, null);
+            private final Tuple<ChunkSectionLayer, List<T>> tuple = new Tuple<>(null, null);
 
             @Override
-            protected Tuple<RenderType, List<T>> computeNext() {
+            protected Tuple<ChunkSectionLayer, List<T>> computeNext() {
                 while (index < content.length && (content[index] == null || content[index].isEmpty()))
                     index++;
                 if (index >= content.length)

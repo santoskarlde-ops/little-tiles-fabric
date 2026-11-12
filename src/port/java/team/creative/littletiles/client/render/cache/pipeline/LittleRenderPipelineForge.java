@@ -11,7 +11,7 @@ import com.mojang.renderpearl.api.vertex.VertexFormat;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap.Entry;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
@@ -30,7 +30,7 @@ import team.creative.creativecore.common.util.type.map.ChunkLayerMap;
 import team.creative.creativecore.common.util.type.map.ChunkLayerMapList;
 import team.creative.creativecore.mixin.ForgeModelBlockRendererAccessor;
 import team.creative.littletiles.api.client.IFakeRenderingBlock;
-import team.creative.littletiles.client.mod.iris.IrisManager;
+import team.creative.littletiles.client.compat.iris.IrisManager;
 import team.creative.littletiles.client.render.cache.buffer.BufferCache;
 import team.creative.littletiles.client.render.cache.buffer.BufferHolder;
 import team.creative.littletiles.client.render.cache.build.RenderingBlockContext;
@@ -45,7 +45,7 @@ public class LittleRenderPipelineForge extends LittleRenderPipeline {
     private final ChunkLayerMap<IntArrayList> indexes = new ChunkLayerMap<>(layer -> new IntArrayList());
     private final MutableBlockPos modelOffset = new MutableBlockPos();
     
-    private ByteBufferBuilder getOrCreate(RenderType layer) {
+    private ByteBufferBuilder getOrCreate(ChunkSectionLayer layer) {
         ByteBufferBuilder buffer = byteBuilder.get(layer);
         if (buffer == null)
             byteBuilder.put(layer, buffer = new ByteBufferBuilder(layer.bufferSize()));
@@ -82,7 +82,7 @@ public class LittleRenderPipelineForge extends LittleRenderPipeline {
             if (structureMap == null || structureMap.isEmpty())
                 continue;
             
-            for (Tuple<RenderType, List<LittleRenderBox>> tuple : structureMap.tuples()) {
+            for (Tuple<ChunkSectionLayer, List<LittleRenderBox>> tuple : structureMap.tuples()) {
                 var cubes = tuple.value;
                 if (cubes.isEmpty())
                     continue;
@@ -95,7 +95,7 @@ public class LittleRenderPipelineForge extends LittleRenderPipeline {
                     BlockState state = cube.state;
                     
                     QuadLighter lighter;
-                    if (Minecraft.useAmbientOcclusion() && state.getLightEmission() == 0) {
+                    if (Minecraft.getInstance().options.ambientOcclusion().get() && state.getLightEmission() == 0) {
                         if (smoothLighter == null) {
                             smoothLighter = renderer.getSmoothLighter().get();
                             smoothLighter.setup(renderLevel, pos, data.state);
@@ -152,7 +152,7 @@ public class LittleRenderPipelineForge extends LittleRenderPipeline {
             }
         }
         
-        for (RenderType layer : RenderType.CHUNK_BUFFER_LAYERS) {
+        for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
             var builder = builders.get(layer);
             if (builder == null)
                 continue;

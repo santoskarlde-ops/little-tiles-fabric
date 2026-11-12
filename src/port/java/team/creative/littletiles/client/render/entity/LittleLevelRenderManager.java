@@ -26,7 +26,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.PrioritizeChunkUpdates;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.SectionBufferBuilderPack;
 import net.minecraft.client.renderer.chunk.RenderRegionCache;
 import net.minecraft.client.renderer.culling.Frustum;
@@ -40,6 +40,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import team.creative.creativecore.common.util.math.vec.Vec3d;
+import team.creative.littletiles.common.compat.creativecore.VecOriginPose;
 import team.creative.littletiles.LittleTiles;
 import team.creative.littletiles.client.LittleTilesClient;
 import team.creative.littletiles.client.level.little.LittleClientLevel;
@@ -151,7 +152,7 @@ public class LittleLevelRenderManager extends LittleEntityRenderManager<LittleLe
         }
         
         Vec3d cam = new Vec3d(camera.position());
-        entity.getOrigin().pose(camera.getPartialTickTime()).transformInverse(cam); // from here on the camera is transformed to the sub level
+        VecOriginPose.of(entity.getOrigin(), Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false)).transformInverse(cam); // from here on the camera is transformed to the sub level
         
         this.camera = cam;
         this.cameraPos.set(cam.x, cam.y, cam.z);
@@ -236,7 +237,7 @@ public class LittleLevelRenderManager extends LittleEntityRenderManager<LittleLe
     }
     
     @Override
-    public void resortTransparency(RenderType layer, double x, double y, double z) {
+    public void resortTransparency(ChunkSectionLayer layer, double x, double y, double z) {
         int i = 0;
         for (LittleRenderChunk chunk : visibleChunks()) {
             if (i > 14)
@@ -247,8 +248,8 @@ public class LittleLevelRenderManager extends LittleEntityRenderManager<LittleLe
     }
     
     @Override
-    public void renderChunkLayer(RenderType layer, PoseStack pose, double x, double y, double z, Matrix4f projectionMatrix, Uniform offset) {
-        for (Iterator<LittleRenderChunk> iterator = layer == RenderType.translucent() ? visibleChunksInverse() : visibleChunks().iterator(); iterator.hasNext();) {
+    public void renderChunkLayer(ChunkSectionLayer layer, PoseStack pose, double x, double y, double z, Matrix4f projectionMatrix, Uniform offset) {
+        for (Iterator<LittleRenderChunk> iterator = layer == ChunkSectionLayer.TRANSLUCENT ? visibleChunksInverse() : visibleChunks().iterator(); iterator.hasNext();) {
             LittleRenderChunk chunk = iterator.next();
             if (!chunk.getCompiledSection().isEmpty(layer)) {
                 VertexBuffer vertexbuffer = chunk.getVertexBuffer(layer);

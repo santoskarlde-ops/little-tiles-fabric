@@ -9,7 +9,7 @@ import com.mojang.blaze3d.vertex.VertexFormat.Mode;
 
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.world.phys.AABB;
@@ -78,13 +78,11 @@ public interface GuiAnimationViewerStorage {
         preview.animation.getRenderManager().setupRender(FAKE_CAMERA, null, false, false);
         preview.animation.getRenderManager().compileSections(FAKE_CAMERA);
         
-        renderChunkLayer(preview, RenderType.solid(), pose, projection);
-        mc.getModelManager().getAtlas(TextureAtlas.LOCATION_BLOCKS).setBlurMipmap(false, mc.options.mipmapLevels().get() > 0); // Neo: fix flickering leaves when mods mess up the blurMipmap settings
-        renderChunkLayer(preview, RenderType.cutoutMipped(), pose, projection);
-        mc.getModelManager().getAtlas(TextureAtlas.LOCATION_BLOCKS).restoreLastBlurMipmap();
-        renderChunkLayer(preview, RenderType.cutout(), pose, projection);
+        // 26.3 merged the cutout-mipped layer into CUTOUT, so the mipmap-blur workaround around it is gone too.
+        renderChunkLayer(preview, ChunkSectionLayer.SOLID, pose, projection);
+        renderChunkLayer(preview, ChunkSectionLayer.CUTOUT, pose, projection);
         
-        renderChunkLayer(preview, RenderType.translucent(), pose, projection);
+        renderChunkLayer(preview, ChunkSectionLayer.TRANSLUCENT, pose, projection);
     }
     
     @Environment(EnvType.CLIENT)
@@ -94,7 +92,7 @@ public interface GuiAnimationViewerStorage {
         resetLight(pixels);
     }
     
-    public default void renderChunkLayer(AnimationPreview preview, RenderType layer, PoseStack pose, Matrix4f matrix) {
+    public default void renderChunkLayer(AnimationPreview preview, ChunkSectionLayer layer, PoseStack pose, Matrix4f matrix) {
         layer.setupRenderState();
         ShaderInstance shaderinstance = RenderSystem.getShader();
         RenderSystem.setupShaderLights(shaderinstance);

@@ -2,7 +2,7 @@ package team.creative.littletiles.common.block.little.registry;
 
 import org.joml.Vector3d;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
@@ -129,7 +129,7 @@ public class LittleMissingBlock implements LittleBlock {
     }
     
     @Override
-    public LittleRenderBox getRenderBox(LittleGrid grid, RenderType layer, LittleBox box, LittleElement element) {
+    public LittleRenderBox getRenderBox(LittleGrid grid, ChunkSectionLayer layer, LittleBox box, LittleElement element) {
         return new LittleRenderBox(grid, box, element);
     }
     

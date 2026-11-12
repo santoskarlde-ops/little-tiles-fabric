@@ -1,20 +1,20 @@
 package team.creative.littletiles.client.render.cache;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import team.creative.creativecore.common.util.type.list.Tuple;
 import team.creative.creativecore.common.util.type.map.ChunkLayerMap;
 import team.creative.littletiles.client.render.cache.buffer.BufferCache;
 
 public class LayeredBufferCache extends ChunkLayerMap<BufferCache> {
     
-    public int length(RenderType type) {
+    public int length(ChunkSectionLayer type) {
         BufferCache cache = get(type);
         if (cache != null)
             return cache.lengthToUpload();
         return 0;
     }
     
-    public int length(RenderType type, int facing) {
+    public int length(ChunkSectionLayer type, int facing) {
         BufferCache cache = get(type);
         if (cache != null)
             return cache.lengthToUpload(facing);
@@ -23,7 +23,7 @@ public class LayeredBufferCache extends ChunkLayerMap<BufferCache> {
     
     public LayeredBufferCache copy() {
         LayeredBufferCache cache = new LayeredBufferCache();
-        for (Tuple<RenderType, BufferCache> t : this.tuples())
+        for (Tuple<ChunkSectionLayer, BufferCache> t : this.tuples())
             cache.put(t.key, t.value.copy());
         return cache;
     }

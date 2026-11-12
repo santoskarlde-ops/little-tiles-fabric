@@ -2,7 +2,7 @@ package team.creative.littletiles.api.common.block;
 
 import org.joml.Vector3d;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
@@ -144,7 +144,7 @@ public interface ILittleMCBlock extends LittleBlock {
     }
     
     @Override
-    public default LittleRenderBox getRenderBox(LittleGrid grid, RenderType layer, LittleBox box, LittleElement element) {
+    public default LittleRenderBox getRenderBox(LittleGrid grid, ChunkSectionLayer layer, LittleBox box, LittleElement element) {
         return new LittleRenderBox(grid, box, element);
     }
     

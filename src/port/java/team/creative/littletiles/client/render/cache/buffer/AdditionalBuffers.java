@@ -7,7 +7,7 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import team.creative.creativecore.common.util.type.itr.FunctionNonNullIterator;
 import team.creative.creativecore.common.util.type.itr.SingleIterator;
 import team.creative.creativecore.common.util.type.list.Tuple;
@@ -33,7 +33,7 @@ public class AdditionalBuffers implements AdditionalBufferReceiver {
     }
     
     /** done after everything else has compiled. Therefore used is not called */
-    public void uploadAdditionalExtra(@Nullable Function<RenderType, ChunkBufferUploader> builderSupplier, Function<RenderType, BufferCollection> bufferSupplier) {
+    public void uploadAdditionalExtra(@Nullable Function<ChunkSectionLayer, ChunkBufferUploader> builderSupplier, Function<ChunkSectionLayer, BufferCollection> bufferSupplier) {
         for (AdditionalBuffer a : content)
             for (int i = 0; i < ChunkLayerMap.LAYERS_COUNT; i++) {
                 var buffer = a.buffers().getByIndex(i);
@@ -44,7 +44,7 @@ public class AdditionalBuffers implements AdditionalBufferReceiver {
             }
     }
     
-    public void uploadAdditional(RenderType layer, @Nullable ChunkBufferUploader uploader, BufferCollection collection) {
+    public void uploadAdditional(ChunkSectionLayer layer, @Nullable ChunkBufferUploader uploader, BufferCollection collection) {
         if (uploadedHook != null)
             uploadedHook.run();
         for (AdditionalBuffer a : content) {
@@ -54,11 +54,11 @@ public class AdditionalBuffers implements AdditionalBufferReceiver {
         }
     }
     
-    public BufferCache getAdditional(BufferCache original, RenderType layer) {
+    public BufferCache getAdditional(BufferCache original, ChunkSectionLayer layer) {
         return BufferCache.combineOrCopy(original, new FunctionNonNullIterator<BufferCache>(content, x -> x.buffers.get(layer)));
     }
     
-    public boolean has(RenderType layer) {
+    public boolean has(ChunkSectionLayer layer) {
         for (AdditionalBuffer b : content)
             if (b.buffers.containsKey(layer))
                 return true;
@@ -100,7 +100,7 @@ public class AdditionalBuffers implements AdditionalBufferReceiver {
     private static record AdditionalBuffer(UUID uuid, LayeredBufferCache buffers) {
         
         public void add(LayeredBufferCache cache) {
-            for (Tuple<RenderType, BufferCache> tuple : cache.tuples())
+            for (Tuple<ChunkSectionLayer, BufferCache> tuple : cache.tuples())
                 if (buffers.containsKey(tuple.key))
                     buffers.put(tuple.key, BufferCache.combineOrCopy(buffers.get(tuple.key), new SingleIterator<BufferCache>(tuple.value)));
                 else

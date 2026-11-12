@@ -1,6 +1,6 @@
 package team.creative.littletiles.common.block.little.tile.parent;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.neoforged.api.distmarker.Dist;
@@ -78,7 +78,7 @@ public interface IParentCollection extends Iterable<LittleTile>, ILevelProvider 
     }
     
     @Environment(EnvType.CLIENT)
-    public default LittleRenderBox getRenderingBox(LittleTile tile, LittleBox box, RenderType layer) {
+    public default LittleRenderBox getRenderingBox(LittleTile tile, LittleBox box, ChunkSectionLayer layer) {
         LittleRenderBox renderBox = box.getRenderingBox(getGrid(), tile);
         if (renderBox != null && isStructure() && LittleStructureAttribute.emissive(getAttribute()))
             renderBox.emissive = true;

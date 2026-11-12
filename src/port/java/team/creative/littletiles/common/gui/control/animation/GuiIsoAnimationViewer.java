@@ -2,6 +2,7 @@ package team.creative.littletiles.common.gui.control.animation;
 
 import team.creative.creativecore.common.gui.IGuiParent;
 import team.creative.littletiles.client.gui.GuiClientCompat;
+import org.joml.Matrix3x2fStack;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 
@@ -19,7 +20,7 @@ import com.mojang.math.Axis;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.sounds.SoundEvents;
@@ -218,7 +219,7 @@ public class GuiIsoAnimationViewer extends GuiControl {
         return (float) (dimensionScale * Math.pow(this.scale.current(), 2));
     }
     @Environment(EnvType.CLIENT)
-    protected void renderContent(GuiGraphics graphics, Rect controlRect, Rect realRect, double controlScale, int mouseX, int mouseY) {
+    protected void renderContent(GuiGraphicsExtractor graphics, Rect controlRect, Rect realRect, double controlScale, int mouseX, int mouseY) {
         GuiBlueprintAnimationStorage storage = item.blueprint.storage;
         
         if (!storage.isReady() || !storage.isReady(item))
@@ -296,43 +297,43 @@ public class GuiIsoAnimationViewer extends GuiControl {
         Lighting.setupFor3DItems();
         RenderSystem.disableDepthTest();
         
-        pose = graphics.pose();
+        Matrix3x2fStack gui = graphics.pose();
         {
-            pose.pushPose();
+            gui.pushMatrix();
             
             int axisWidth = 20;
             int axisHeight = 16;
             
             Font font = Minecraft.getInstance().font;
             
-            graphics.drawString(font, view.xAxis.axis.name(), GuiClientCompat.rect(this).getWidth() / 2 - axisWidth / 2, GuiClientCompat.rect(this).getHeight() - axisHeight + font.lineHeight / 2, ColorUtils.WHITE);
+            graphics.text(font, view.xAxis.axis.name(), (int) (GuiClientCompat.rect(this).getWidth() / 2 - axisWidth / 2), (int) (GuiClientCompat.rect(this).getHeight() - axisHeight + font.lineHeight / 2), ColorUtils.WHITE);
             Icon icon = view.xAxis.positive ? Icon.ARROW_RIGHT : Icon.ARROW_LEFT;
             
-            pose.translate(GuiClientCompat.rect(this).getWidth() / 2 - axisWidth / 2, GuiClientCompat.rect(this).getHeight() - axisHeight, 0);
+            gui.translate((float) (GuiClientCompat.rect(this).getWidth() / 2 - axisWidth / 2), (float) (GuiClientCompat.rect(this).getHeight() - axisHeight));
             RenderSystem.setShaderTexture(0, icon.location());
             RenderSystem.setShaderColor(0, 0, 0, 1);
             GuiRenderHelper.textureRect(graphics, 9, 0, icon.width(), icon.height(), icon.minX(), icon.minY());
             RenderSystem.setShaderColor(1, 1, 1, 1);
             GuiRenderHelper.textureRect(graphics, 8, 0, icon.width(), icon.height(), icon.minX(), icon.minY());
             
-            pose.popPose();
-            pose.pushPose();
+            gui.popMatrix();
+            gui.pushMatrix();
             
-            graphics.drawString(font, view.yAxis.axis.name(), 5, GuiClientCompat.rect(this).getHeight() / 2 - axisHeight / 2, ColorUtils.WHITE);
+            graphics.text(font, view.yAxis.axis.name(), 5, (int) (GuiClientCompat.rect(this).getHeight() / 2 - axisHeight / 2), ColorUtils.WHITE);
             icon = view.yAxis.positive ? Icon.ARROW_UP : Icon.ARROW_DOWN;
             
-            pose.translate(0, GuiClientCompat.rect(this).getHeight() / 2 - axisHeight - 2, 0);
+            gui.translate((float) (0), (float) (GuiClientCompat.rect(this).getHeight() / 2 - axisHeight - 2));
             RenderSystem.setShaderTexture(0, icon.location());
             RenderSystem.setShaderColor(0, 0, 0, 1);
             GuiRenderHelper.textureRect(graphics, 0, -9, icon.width(), icon.height(), icon.minX(), icon.minY());
             RenderSystem.setShaderColor(1, 1, 1, 1);
             GuiRenderHelper.textureRect(graphics, 0, -8, icon.width(), icon.height(), icon.minX(), icon.minY());
             
-            pose.popPose();
+            gui.popMatrix();
         }
     }
     @Environment(EnvType.CLIENT)
-    protected void renderContent(GuiGraphics graphics, int mouseX, int mouseY) {}
+    protected void renderContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {}
     public void closed() {}
     public void init() {}
     public void tick() {}

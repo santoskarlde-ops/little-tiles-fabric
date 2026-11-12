@@ -7,7 +7,7 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import team.creative.littletiles.client.render.cache.VertexFormatMismatchException;
 import team.creative.littletiles.client.render.cache.buffer.BufferCache;
 import team.creative.littletiles.client.render.cache.buffer.BufferCollection;
@@ -40,7 +40,7 @@ public abstract class LittleRenderPipelineType<T extends LittleRenderPipeline> {
         return null;
     }
     
-    public static void compile(long pos, BETiles be, @Nullable Function<RenderType, ChunkBufferUploader> builderSupplier, Function<RenderType, BufferCollection> bufferSupplier) {
+    public static void compile(long pos, BETiles be, @Nullable Function<ChunkSectionLayer, ChunkBufferUploader> builderSupplier, Function<ChunkSectionLayer, BufferCollection> bufferSupplier) {
         be.updateQuadCache(pos);
         
         synchronized (be.render) {
@@ -52,8 +52,8 @@ public abstract class LittleRenderPipelineType<T extends LittleRenderPipeline> {
         }
     }
     
-    public static void beforeCompileEnds(RenderChunkExtender chunk, @Nullable Function<RenderType, ChunkBufferUploader> builderSupplier,
-            Function<RenderType, BufferCollection> bufferSupplier) {
+    public static void beforeCompileEnds(RenderChunkExtender chunk, @Nullable Function<ChunkSectionLayer, ChunkBufferUploader> builderSupplier,
+            Function<ChunkSectionLayer, BufferCollection> bufferSupplier) {
         chunk.beforeCompileEnds(builderSupplier, bufferSupplier);
     }
     

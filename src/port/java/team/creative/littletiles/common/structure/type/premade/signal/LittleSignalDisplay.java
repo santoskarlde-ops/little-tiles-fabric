@@ -15,7 +15,7 @@ import com.mojang.renderpearl.api.vertex.VertexFormat;
 
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -214,7 +214,7 @@ public class LittleSignalDisplay extends LittleStructurePremade {
             return;
         
         int color = this.color == ColorUtils.WHITE ? LittleSignalCableBase.DEFAULT_CABLE_COLOR : this.color;
-        RenderType layer = ColorUtils.isTransparent(color) ? RenderType.translucent() : RenderType.solid();
+        ChunkSectionLayer layer = ColorUtils.isTransparent(color) ? ChunkSectionLayer.TRANSLUCENT : ChunkSectionLayer.SOLID;
         
         try {
             SurroundingBox box = getSurroundingBox();
